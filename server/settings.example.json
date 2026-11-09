@@ -1,0 +1,13 @@
+{
+  "database": "/data/rime.sqlite3",
+  "scope": "/config/sync-manifest.json",
+  "max_request_bytes": 16777216,
+  "max_state_bytes": 67108864,
+  "devices": [
+    {
+      "user": "hx",
+      "device": "09ad77e5-8a8d-45b8-97f3-b2893bd56e5b",
+      "token": "REPLACE_WITH_A_RANDOM_DEVICE_TOKEN"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+# Private learned vocabulary and native database/sync artifacts
+private/
+*.userdb/
+*.userdb.txt
+server/settings.json
+server/.env
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+# Project-local device credentials (never synchronize or build into images)
+*.local.json

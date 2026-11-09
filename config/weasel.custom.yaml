@@ -1,0 +1,114 @@
+# 小狼毫个人偏好；应用名单仅影响初始状态，不强制锁定英文。
+patch:
+  global_ascii: false
+  "style/horizontal": true
+  "style/vertical_text": false
+  "style/font_point": 14
+  "style/label_font_point": 14
+  "style/comment_font_point": 14
+  "style/color_scheme": hx_light
+  "style/color_scheme_dark": hx_dark
+  "style/layout/round_corner": 0
+  "style/layout/corner_radius": 0
+  "style/layout/shadow_radius": 0
+  "style/layout/border_width": 1
+  "style/label_format": "%s"
+  "app_options/+":
+    "cmd.exe":
+      ascii_mode: true
+    "conhost.exe":
+      ascii_mode: true
+    "windowsterminal.exe":
+      ascii_mode: true
+    "wt.exe":
+      ascii_mode: true
+    "powershell.exe":
+      ascii_mode: true
+    "pwsh.exe":
+      ascii_mode: true
+    "powershell_ise.exe":
+      ascii_mode: true
+    "wsl.exe":
+      ascii_mode: true
+    "mintty.exe":
+      ascii_mode: true
+    "wezterm-gui.exe":
+      ascii_mode: true
+    "alacritty.exe":
+      ascii_mode: true
+    "tabby.exe":
+      ascii_mode: true
+    "putty.exe":
+      ascii_mode: true
+    "mobaxterm.exe":
+      ascii_mode: true
+    "code.exe":
+      ascii_mode: true
+    "code - insiders.exe":
+      ascii_mode: true
+    "cursor.exe":
+      ascii_mode: true
+    "windsurf.exe":
+      ascii_mode: true
+    "vscodium.exe":
+      ascii_mode: true
+    "sublime_text.exe":
+      ascii_mode: true
+    "notepad++.exe":
+      ascii_mode: true
+    "nvim-qt.exe":
+      ascii_mode: true
+    "gvim.exe":
+      ascii_mode: true
+    "emacs.exe":
+      ascii_mode: true
+    "devenv.exe":
+      ascii_mode: true
+    "idea64.exe":
+      ascii_mode: true
+    "pycharm64.exe":
+      ascii_mode: true
+    "webstorm64.exe":
+      ascii_mode: true
+    "clion64.exe":
+      ascii_mode: true
+    "goland64.exe":
+      ascii_mode: true
+    "rider64.exe":
+      ascii_mode: true
+    "rustrover64.exe":
+      ascii_mode: true
+    "datagrip64.exe":
+      ascii_mode: true
+  "preset_color_schemes/hx_light":
+    name: "hx_light"
+    author: hx
+    back_color: 0xffffff
+    border_color: 0xffffff
+    candidate_back_color: 0xffffff
+    hilited_back_color: 0xffffff
+    hilited_candidate_back_color: 0x50b000
+    text_color: 0x000000
+    candidate_text_color: 0x000000
+    label_color: 0x000000
+    comment_text_color: 0x000000
+    hilited_text_color: 0x000000
+    hilited_candidate_text_color: 0x000000
+    hilited_label_color: 0x000000
+    hilited_comment_text_color: 0x000000
+  "preset_color_schemes/hx_dark":
+    name: "hx_dark"
+    author: hx
+    back_color: 0x000000
+    border_color: 0x000000
+    candidate_back_color: 0x000000
+    hilited_back_color: 0x000000
+    hilited_candidate_back_color: 0x008000
+    text_color: 0xffffff
+    candidate_text_color: 0xffffff
+    label_color: 0xffffff
+    comment_text_color: 0xffffff
+    hilited_text_color: 0xffffff
+    hilited_candidate_text_color: 0xffffff
+    hilited_label_color: 0xffffff
+    hilited_comment_text_color: 0xffffff

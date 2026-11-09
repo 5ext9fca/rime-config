@@ -1,0 +1,30 @@
+{
+  "enabled": true,
+  "interval_seconds": 86400,
+  "retry_seconds": 900,
+  "timeout_seconds": 30,
+  "max_download_bytes": 134217728,
+  "source": {
+    "repository": "iDvel/rime-ice",
+    "ref": "main",
+    "files": [
+      "cn_dicts/8105.dict.yaml",
+      "cn_dicts/41448.dict.yaml",
+      "cn_dicts/base.dict.yaml",
+      "cn_dicts/ext.dict.yaml",
+      "cn_dicts/others.dict.yaml",
+      "cn_dicts/tencent.dict.yaml",
+      "en_dicts/en.dict.yaml",
+      "en_dicts/en_ext.dict.yaml",
+      "en_dicts/cn_en.txt",
+      "en_dicts/cn_en_abc.txt",
+      "en_dicts/cn_en_double_pinyin.txt",
+      "en_dicts/cn_en_flypy.txt",
+      "en_dicts/cn_en_jiajia.txt",
+      "en_dicts/cn_en_mspy.txt",
+      "en_dicts/cn_en_sogou.txt",
+      "en_dicts/cn_en_ziguang.txt",
+      "radical_pinyin.dict.yaml"
+    ]
+  }
+}

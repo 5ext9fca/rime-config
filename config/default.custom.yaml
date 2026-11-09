@@ -1,0 +1,23 @@
+# 个人通用偏好；以本项目 config/ 为配置源。
+patch:
+  schema_list:
+    - {schema: rime_ice}
+    - {schema: luna_quanpin}
+  "menu/page_size": 9
+  "ascii_composer/good_old_caps_lock": true
+  "ascii_composer/switch_key":
+    Shift_L: noop
+    Shift_R: noop
+    Control_L: noop
+    Control_R: noop
+    Caps_Lock: noop
+  # Ctrl+Space 由个人 Lua 处理器负责切换并去除拼音分隔符。
+  "key_binder/bindings/+":
+    - {when: has_menu, accept: minus, send: Page_Up}
+    - {when: has_menu, accept: equal, send: Page_Down}
+  # 不记忆 ascii_mode；窗口初始状态交给前端 app_options。
+  "switcher/save_options":
+    - traditionalization
+    - emoji
+    - full_shape
+    - search_single_char

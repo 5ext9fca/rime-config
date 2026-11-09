@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "url": "https://YOUR_PUBLIC_HOST/rime/v1/state",
+  "interval_seconds": 60,
+  "retry_seconds": 30,
+  "timeout_seconds": 30
+}

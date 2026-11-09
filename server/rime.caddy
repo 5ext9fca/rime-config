@@ -1,0 +1,7 @@
+# Import inside the existing HTTPS site block; preserve /rime/ prefix.
+handle /rime/* {
+    request_body {
+        max_size 16MB
+    }
+    reverse_proxy rime-sync:8080
+}

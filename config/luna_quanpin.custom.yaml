@@ -1,0 +1,6 @@
+# 备用朙月方案也使用相同的切换键、自动标点与候选数量。
+patch:
+  "menu/page_size": 9
+  "switches/@0/reset": null
+  "switches/@2/reset": 1  # simplification：简体
+  "engine/processors/@before 0": lua_processor@*hx_preferences

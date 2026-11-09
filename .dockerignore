@@ -1,0 +1,14 @@
+**
+!client/
+!client/*.py
+!server/
+!server/app.py
+!server/gunicorn.conf.py
+!server/requirements.txt
+!server/Dockerfile
+!tests/
+!tests/test_*.py
+!sync-manifest.json
+!third-party.json
+!remote.json
+!paths.json

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "required_files": ["installation.yaml"],
+  "candidates": {
+    "wsl": [
+      "{windows_appdata}/Rime",
+      "/mnt/c/Users/hx/AppData/Roaming/Rime"
+    ],
+    "macos": ["{home}/Library/Rime"],
+    "linux": [
+      "{xdg_config_home}/ibus/rime",
+      "{xdg_config_home}/fcitx5/rime",
+      "{xdg_config_home}/fcitx/rime"
+    ]
+  }
+}

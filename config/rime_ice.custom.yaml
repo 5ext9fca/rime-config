@@ -1,0 +1,18 @@
+# 雾凇全拼：简体、纠错和混输沿用原方案，模糊音规则保持未启用。
+patch:
+  "menu/page_size": 9
+  "switches/@2/reset": 0  # traditionalization：简体
+  "switches/@3/reset": 1  # emoji
+  "translator/enable_word_completion": true
+  "cn_en/enable_completion": true
+  "engine/processors/@before 0": lua_processor@*hx_preferences
+  grammar:
+    language: wanxiang-lts-zh-hans
+    collocation_max_length: 6
+    collocation_min_length: 3
+    collocation_penalty: -14
+    non_collocation_penalty: -6
+    weak_collocation_penalty: -100
+    rear_penalty: -20
+  "translator/contextual_suggestions": false
+  "translator/max_homophones": 8

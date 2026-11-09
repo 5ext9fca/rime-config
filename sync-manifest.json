@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "configuration": {
+    "enabled": true,
+    "files": [
+      "default.custom.yaml",
+      "weasel.custom.yaml",
+      "rime_ice.custom.yaml",
+      "custom_phrase.txt",
+      "luna_quanpin.custom.yaml",
+      "lua/hx_preferences.lua"
+    ]
+  },
+  "dictionaries": {
+    "enabled": true,
+    "names": [
+      "luna_pinyin",
+      "rime_ice"
+    ]
+  }
+}
