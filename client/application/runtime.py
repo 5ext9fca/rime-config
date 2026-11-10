@@ -50,6 +50,9 @@ def run(args):
             remember_target(paths_state, target)
         if not args.plan_json:
             print(f'配置源: {SOURCE}\n目标: {target}（{target_origin}）', flush=True)
+        if getattr(args, 'deploy_now', False):
+            from client.application.deployment_test import run
+            return run(args, target, state, SOURCE)
         force_refresh = args.refresh_third_party
         force_remote = args.sync_now
         resolution = args.resolve_conflicts

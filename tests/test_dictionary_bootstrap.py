@@ -24,6 +24,21 @@ def snapshot(owner,name,word,count):
 
 
 class BootstrapTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt' and os.environ.get('RIME_TEST_DLL'), 'Requires installed Windows librime')
+    def test_windows_native_first_import_and_retry(self):
+        second = self.sync / 'second'
+        second.mkdir()
+        (second / 'remote_only.userdb.txt').write_bytes(snapshot('second', 'remote_only', '第二设备', 5))
+        deployer = Path(os.environ['RIME_TEST_DLL']).with_name('WeaselDeployer.exe')
+        self.assertEqual(ensure(self.target, self.sync, 'local', ['remote_only'], self.session,
+                                'windows', deployer=deployer), ['remote_only'])
+        database = self.target / 'remote_only.userdb'
+        self.assertTrue(database.is_dir())
+        before = {p.name: p.read_bytes() for p in database.iterdir() if p.is_file()}
+        self.assertEqual(ensure(self.target, self.sync, 'local', ['remote_only'], self.session,
+                                'windows', deployer=deployer), [])
+        self.assertEqual(before, {p.name: p.read_bytes() for p in database.iterdir() if p.is_file()})
+
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name);self.target=self.root/'user';self.target.mkdir();self.session=self.root/'session';self.session.mkdir()

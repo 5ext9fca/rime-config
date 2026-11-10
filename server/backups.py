@@ -96,7 +96,7 @@ def _backups_locked(database, policy, now=None, settings_path=None, force=False)
             if dest.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise ValueError('Backup integrity failure')
         if settings_path is not None and (settings_path.read_bytes()!=settings_data or scope_path.read_bytes()!=scope_data):
             raise ValueError('Server configuration changed during backup')
-        with temp.open('rb') as stream:os.fsync(stream.fileno())
+        with temp.open('r+b') as stream:os.fsync(stream.fileno())
         final=temp.with_suffix('.sqlite3');os.replace(temp,final)
         paths=[final]
         if settings_data is not None:

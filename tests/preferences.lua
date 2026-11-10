@@ -40,17 +40,27 @@ local function make(distribution, initially_ascii)
   rime_api = original_api
   return env, ctx, engine
 end
-local function key(repr, code, ctrl)
+local function key(repr, code, ctrl, release)
   return {keycode=code or string.byte(repr), repr=function() return repr end,
-    release=function() return false end, ctrl=function() return ctrl or false end,
+    release=function() return release or false end, ctrl=function() return ctrl or false end,
     alt=function() return false end, super=function() return false end}
 end
 local env, ctx, engine = make()
 ctx.input = "xi'an hao"
 assert(prefs.func(key('Control+space',32,true),env)==1)
 assert(engine.output[1]=='xianhao' and ctx:get_option('ascii_mode') and ctx.input=='')
+-- 自动重复不能再次切换；匹配释放必须被消费且不改变模式。
+assert(prefs.func(key('Control+space',32,true),env)==1)
+assert(ctx:get_option('ascii_mode') and #engine.output==1)
+assert(prefs.func(key('Release+Control+space',32,true,true),env)==1)
+assert(ctx:get_option('ascii_mode'))
 assert(prefs.func(key('Control+space',32,true),env)==1)
 assert(not ctx:get_option('ascii_mode'))
+-- 先释放 Control，再释放空格同样结束本轮按键。
+prefs.func(key('Release+Control_L',65507,false,true),env)
+assert(prefs.func(key('Release+space',32,false,true),env)==1)
+assert(not ctx:get_option('ascii_mode'))
+assert(prefs.func(key('Release+space',32,false,true),env)==2)
 assert(prefs.func(key('Shift_L',65505),env)==2 and not ctx:get_option('ascii_mode'))
 ctx.input="ni'hao"
 ctx:set_option('ascii_mode',true)
@@ -93,3 +103,21 @@ for _, distribution in ipairs({'Weasel', 'fcitx-rime'}) do
   prefs.fini(other)
 end
 print('Lua preference behavior tests passed')
+-- Flutter/TSF 实测：一次 Lua 按下后另有外部模式翻转；长按会持续翻转。
+local win, win_ctx = make('Weasel', false)
+assert(prefs.func(key('Control+space',32,true),win)==1)
+for _=1,5 do
+  win_ctx:set_option('ascii_mode',false)
+  assert(win_ctx:get_option('ascii_mode'))
+end
+assert(prefs.func(key('Release+space',32,false,true),win)==1)
+win_ctx:set_option('ascii_mode',false)
+assert(not win_ctx:get_option('ascii_mode')) -- 释放后菜单/前端照常切换
+win_ctx:set_option('ascii_mode',true)
+assert(prefs.func(key('Control+space',32,true),win)==1)
+win_ctx:set_option('ascii_mode',true)
+assert(not win_ctx:get_option('ascii_mode')) -- 英文到中文也保护
+prefs.func(key('a',97),win) -- 丢失释放后的普通按键解除保护
+win_ctx:set_option('ascii_mode',true)
+assert(win_ctx:get_option('ascii_mode'))
+prefs.fini(win)

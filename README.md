@@ -261,6 +261,8 @@ python rime.py --plan-json
 
 ## Windows 验收记录
 
+2026-11-10 新入口续验已将本机任务迁移到根目录 `rime.py`，保留原有设备身份、基线、备份和原生限频参数。170 项回归中 153 通过、17 项按平台条件跳过；隔离 DLL 首次建库、多设备词频合并和真实输入引擎检查通过。17 个配置范围项与真实 HTTPS、本机配置源及适用目标一致，原生 `/sync` 合并导出及回传、内置自动部署和部署后资源指纹复核已验证。已合并 `f6a5020` 的重试修复，最终 HTTPS 核对版本为 44。桌面 UI 和新入口重新登录触发仍需现场确认，详情见 [Windows 新入口续验](PROJECT.md#windows-新入口续验2026-11-10排除桌面-ui)。下列为此前各阶段的历史记录。
+
 Windows 原生支持已于 2026-11-10 完成本轮验收，由用户确认接受。后台任务已安装并确认单实例运行、日志持续更新；回归测试为 85 项，其中 78 项通过、7 项因符号链接权限限制跳过。
 
 本机现已连接 `https://198.13.57.54:8443/rime/v1/state`，后台每 60 秒检查云同步，网络失败后 30 秒重试；原生维护采用独立的 15 分钟限频和空闲检测。生产端 6 个配置文件、2 份词典快照核对通过；设备令牌仅保存在私有配置中。Windows 已接入原生 `/sync` 自动合并、导出及回传，模式为 `native-all`，每轮另记录是否完成或延后。最新 Windows 回归 99 项：92 通过、7 项因符号链接权限跳过。测试证据见 [Windows 验收总结](PROJECT.md#windows-验收总结)、[公网部署与同步验收](PROJECT.md#公网部署与同步验收) 和 [原生全量同步](PROJECT.md#原生全量同步)。
@@ -398,3 +400,20 @@ Ubuntu 和 macOS 已完成内置原生同步及重新部署实机验收；Window
 Ubuntu 的 `config/fcitx5/input.json` 管理前端输入偏好，通过 Fcitx5 D-Bus 备份、合并、应用并读回验证，保留无关快捷键。`Ctrl+Space` 交给 Rime Lua 中英切换；`Ctrl+Alt+Space` 用于激活/退出 Fcitx5；Shift 不临时切换，不跨窗口共享输入状态。需要系统 Python 的 PyGObject/Gio（Ubuntu `python3-gi`）。切换前端本身时提交原始输入；Rime 内部中英切换则提交去分隔符拼音。该 JSON 只有纳入同步清单且启用配置处理时才应用。
 
 三端共用 `default.custom.yaml`、方案补丁和 `lua/hx_preferences.lua`；应用初始英文名单分别位于 Windows 的 `weasel.custom.yaml`、Linux 的 `fcitx5.custom.yaml`；macOS 的 `squirrel.custom.yaml` 改为中文初始状态，共用 Lua 根据 Squirrel 前端身份锁定中文。应用标识由前端提供，Wayland/XWayland 或发行渠道可能不同；Windows/Linux 未匹配时沿用方案默认，手动切换仍可用；macOS 始终保持中文。
+
+
+Windows 的雾凇/朙月方案通过自定义补丁引用已有 `icons/chinese.ico`、`icons/english.ico`；新设备需另行准备这两个资源文件，图标二进制不随个人配置云同步。Ctrl+Space 在 Windows/Linux 按一次完整按键周期切换，长按重复和松开不再触发第二次 Lua 切换；macOS 行为不变。PiliPlus/Flutter 的短按外部二次切换已增加 Windows 按键周期保护，用户确认短按和长按均正常；验证边界见 [图标与按键修正](PROJECT.md#windows-图标与-ctrlspace-释放修正2026-11-10)。
+
+
+### 测试时立即部署
+
+修改 `config/` 后，可以单次应用并立即重新部署：
+
+```powershell
+python rime.py --deploy-now --dry-run  # 只读预览
+python rime.py --deploy-now            # 备份应用受管配置，然后立即部署
+```
+
+此测试入口不联网、不刷新第三方词典、不执行个人词典 `/sync`，不修改原生同步限频状态。它覆盖自动部署开关，跳过本次部署的空闲等待、失败退避及“资源未变化”判断；仍保留配置备份、文件锁、原生维护互斥、真实完成凭据和部署后指纹复核。命令可能打断正在进行的输入，应在测试时手动运行。自定义部署包装器收到 `RIME_DEPLOY_IDLE_SECONDS=0`，仍须提供完成凭据；如果包装器返回 deferred，命令返回非零。
+
+支持 `--target`、`--state-dir`、`--sync-config`、`--automation-config` 等路径配置，以及 `--dry-run`。不能与 `--watch`、`--service`、云同步、原生词典同步等动作混用，也不会进入服务启动参数。只应用个人配置清单中启用的文件；Linux 的 Fcitx5 主题和前端偏好应用仍走正常工作流。测试结果保存在状态目录的 `deployment-test-result.json`，原生部署凭据沿用 `deployment/`。这是本地配置测试，不代表已完成云同步。

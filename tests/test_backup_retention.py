@@ -1,3 +1,4 @@
+from contextlib import closing
 import copy
 import io
 import json
@@ -107,7 +108,7 @@ class ServerBackupTests(unittest.TestCase):
         self.settings={'database':str(self.database),'scope':'scope.json','max_request_bytes':10000,'max_state_bytes':100000,
                        'devices':[{'user':'test','device':'a','token':'x'*40}], 'backups':self.policy,'auto_expand_dictionaries':True}
         self.path=self.root/'settings.json';self.path.write_text(json.dumps(self.settings));create_app(self.path)
-        with sqlite3.connect(self.database) as db:
+        with closing(sqlite3.connect(self.database)) as db, db:
             credentials.authenticate(db,self.settings['devices'],'x'*40)
             credentials.rotate(db,self.settings['devices'][0],'current','y'*40)
             scopes.extend_scope(db,'test',['extra'],['rime_ice'],128)
@@ -126,7 +127,7 @@ class ServerBackupTests(unittest.TestCase):
         app=create_app(directory/'settings.json');status=[]
         data=b''.join(app({'PATH_INFO':'/rime/v1/state','REQUEST_METHOD':'GET','HTTP_AUTHORIZATION':'Bearer '+'y'*40},lambda s,h:status.append(s)))
         self.assertEqual(status,['200 OK']);value=json.loads(data);self.assertEqual(value['revision'],5);self.assertIn('extra',value['scope']['dictionaries']['names'])
-        with sqlite3.connect(self.database) as db:self.assertEqual(db.execute('SELECT revision FROM states').fetchone()[0],5)
+        with closing(sqlite3.connect(self.database)) as db, db:self.assertEqual(db.execute('SELECT revision FROM states').fetchone()[0],5)
         self.assertEqual(set(json.loads(manifest.read_text())['files']),{prefix+'.sqlite3',prefix+'.settings.json',prefix+'.scope.json'})
 
     def test_failure_keeps_previous_and_releases_lease(self):
@@ -134,13 +135,13 @@ class ServerBackupTests(unittest.TestCase):
         with patch('server.backups.file_hash',side_effect=OSError('injected disk failure')):
             with self.assertRaises(OSError):backup_worker.tick(self.path,True)
         self.assertEqual(manifest.read_bytes(),before);self.assertFalse(backup_worker.healthy(self.path,60))
-        with sqlite3.connect(self.database) as db:self.assertIsNone(db.execute("SELECT * FROM maintenance WHERE key='backup-running'").fetchone())
+        with closing(sqlite3.connect(self.database)) as db, db:self.assertIsNone(db.execute("SELECT * FROM maintenance WHERE key='backup-running'").fetchone())
         self.assertEqual(backup_worker.tick(self.path,True)['status'],'success')
 
     def test_lock_and_stale_lease(self):
         with (self.root/'backup.lock').open('a') as lock:
             lock_exclusive(lock);self.assertEqual(backup_worker.tick(self.path)['status'],'busy')
-        with sqlite3.connect(self.database) as db:db.execute("INSERT INTO maintenance VALUES ('backup-running',?)",(time.time()-700,))
+        with closing(sqlite3.connect(self.database)) as db, db:db.execute("INSERT INTO maintenance VALUES ('backup-running',?)",(time.time()-700,))
         self.assertEqual(backup_worker.tick(self.path)['status'],'success')
 
     def test_prune_sets_atomically_scoped_and_protect_corruption(self):

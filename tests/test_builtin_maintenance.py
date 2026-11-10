@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -50,6 +51,37 @@ class FcitxCompletionTests(unittest.TestCase):
 
 
 class OtherPlatformEvidenceTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'nt', 'Requires Windows execution flags')
+    def test_windows_deployment_requires_independent_ipc_probe(self):
+        import subprocess
+        from unittest.mock import Mock
+        from client.platforms.windows import weasel_deploy, weasel_sync
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            logs = root / 'rime.weasel'
+            logs.mkdir()
+            (logs / 'test.INFO.current.123.log').write_text(
+                'updating workspace.\nfinished updating schemas: 5 success, 0 failure\n')
+            child = Mock(pid=123)
+            child.wait.return_value = 0
+            child.poll.return_value = 0
+            provider = Mock()
+            provider.observe.return_value.permits_maintenance = True
+            with patch.dict(os.environ, {'TEMP': folder}), \
+                    patch.object(weasel_sync, 'registered_target', return_value=root), \
+                    patch.object(weasel_sync, 'deployer_busy', return_value=False), \
+                    patch.object(weasel_deploy, 'installed_deployer', return_value=root / 'WeaselDeployer.exe'), \
+                    patch.object(weasel_deploy.subprocess, 'Popen', return_value=child), \
+                    patch.object(weasel_deploy.subprocess, 'run') as probe:
+                probe.side_effect = [subprocess.CalledProcessError(1, 'probe'), None]
+                with self.assertRaises(subprocess.CalledProcessError):
+                    weasel_deploy.run(root, {'idle_seconds': 30}, root, provider)
+                self.assertFalse((root / 'receipt.json').exists())
+                probe.side_effect = None
+                result = weasel_deploy.run(root, {'idle_seconds': 30}, root, provider)
+                self.assertEqual(result['input_service_probe'], 'passed')
+                self.assertEqual(probe.call_args.args[0][-1], '--probe')
+
     def test_squirrel_requires_new_start_and_all_dictionaries(self):
         from client.platforms.macos.squirrel_maintenance import verify_tasks
         text="running deployment tasks:\nsynchronize user dict 'a'\n3 tasks ran: 3 success, 0 failure"
@@ -60,12 +92,13 @@ class OtherPlatformEvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):verify_tasks(text,'deploy',set())
         self.assertTrue(verify_tasks('running deployment tasks:\nupdating workspace.\n3 tasks ran: 3 success, 0 failure','deploy',set()))
 
-    def test_windows_exit_without_task_and_resume_evidence_is_rejected(self):
+    def test_windows_deployment_requires_ordered_success_logs(self):
         from client.platforms.windows.weasel_deploy import verify_log
         for text in ['', 'Resuming service.', '3 tasks ran: 3 success, 0 failure',
                      '3 tasks ran: 2 success, 1 failure\nResuming service.']:
             with self.assertRaises(ValueError):verify_log(text)
         verify_log('updating workspace.\nfinished updating schemas: 4 success, 0 failure\nResuming service.')
+        verify_log('updating workspace.\nfinished updating schemas: 5 success, 0 failure')
         with self.assertRaises(ValueError):
             verify_log('updating workspace.\nfinished updating schemas: 3 success, 1 failure\nResuming service.')
         with self.assertRaises(ValueError):
@@ -84,7 +117,7 @@ class CompatibilityTests(unittest.TestCase):
         from client.maintenance.native_sync import FullNativeSync
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder);state=root/'state';state.mkdir()
-            command=json.dumps(['/bin/true'])
+            command=json.dumps([sys.executable, '-c', 'pass'])
             binding=[str(root/'target'),str(root/'sync'),'id',command,'None']
             old={'binding':binding,'last_attempt':123,'last_success':120,'unsafe':False}
             (state/'schedule.json').write_text(json.dumps(old))

@@ -21,6 +21,7 @@ def parse_args():
     parser.add_argument('--token-stdin', action='store_true', help='初始化时从标准输入读取一行设备令牌')
     parser.add_argument('--remote-config', type=Path, default=SOURCE.parent / 'remote.json', help='服务端连接及同步周期配置')
     parser.add_argument('--sync-now', action='store_true', help='立即进行一轮服务端同步')
+    parser.add_argument('--deploy-now', action='store_true', help='单次测试：备份应用本地配置并立即部署，跳过部署空闲/退避；不联网或同步词典')
     parser.add_argument('--resolve-conflicts', choices=['local', 'remote'], help='显式选择本轮配置冲突的本地或服务端版本')
     parser.add_argument('--sync-config', type=Path, default=SOURCE.parent / 'sync-manifest.json', help='配置与个人词典同步/应用范围文件')
     parser.add_argument('--third-party-config', type=Path, default=SOURCE.parent / 'third-party.json', help='第三方词典刷新配置文件')
@@ -42,6 +43,12 @@ def parse_args():
     parser.add_argument('--interval', type=float, default=5, help='检查间隔秒数（默认 5）')
     parser.add_argument('--service', choices=['install', 'uninstall', 'status'], help='注册并启动、卸载或查询当前用户的自动同步服务')
     args = parser.parse_args()
+    if args.deploy_now and any((args.service, args.watch, args.init, args.discover_target,
+            args.rediscover_target, args.plan_json, args.sync_now, args.resolve_conflicts,
+            args.refresh_third_party, args.third_party_only, args.token_stdin,
+            args.dictionary_store, args.native_sync_command, args.native_sync_all_command,
+            args.native_sync_builtin, args.weasel_deployer, args.rime_sync_dir)):
+        parser.error('--deploy-now 是独立测试操作，只能与路径/配置选项及 --dry-run 同用')
     if args.plan_json:
         if args.service or args.watch or args.init or args.discover_target or args.resolve_conflicts or args.token_stdin:
             parser.error('--plan-json 是独立的只读计划操作')

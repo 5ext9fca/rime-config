@@ -107,6 +107,9 @@ def main():
             result['squirrel_chinese_only'] = 'passed'
         else:
             assert get_option(sid, b'ascii_mode')
+            if args.distribution_code_name == 'Weasel':
+                option(sid, b'ascii_mode', 0)  # second switch outside Lua
+                assert get_option(sid, b'ascii_mode')
             commit = Commit()
             commit.data_size = C.sizeof(Commit) - 4
             assert function(lib, 'RimeGetCommit', C.c_int, C.c_size_t, C.POINTER(Commit))(sid, C.byref(commit))
@@ -115,6 +118,20 @@ def main():
             finally:
                 function(lib, 'RimeFreeCommit', C.c_int, C.POINTER(Commit))(C.byref(commit))
             result['ctrl_space_commit_and_toggle'] = 'passed'
+            # Exercise the full physical-key cycle, not only a key-down event.
+            assert key(sid, 32, 4)  # repeat while still held
+            assert get_option(sid, b'ascii_mode')
+            assert key(sid, 32, 4 | (1 << 30))
+            assert get_option(sid, b'ascii_mode')
+            assert key(sid, 32, 4)
+            assert not get_option(sid, b'ascii_mode')
+            if args.distribution_code_name == 'Weasel':
+                option(sid, b'ascii_mode', 1)
+                assert not get_option(sid, b'ascii_mode')
+            key(sid, 65507, 1 << 30)  # Control released first
+            assert key(sid, 32, 1 << 30)
+            assert not get_option(sid, b'ascii_mode')
+            result['ctrl_space_repeat_and_release'] = 'passed'
         # Verify same-document includes actually resolve to effective algebra.
         for schema in ('melt_eng', 'radical_pinyin'):
             assert select(sid, schema.encode())

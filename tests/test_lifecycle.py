@@ -1,3 +1,4 @@
+from contextlib import closing
 import base64
 import copy
 import hashlib
@@ -34,7 +35,7 @@ class LifecycleServerTests(ServerFixture):
         self.assertEqual(self.call('POST',{'token':new},route=url)[0],200)
         self.assertEqual(self.call('POST',{'token':'x'*40},route=url)[0],409)
         dbpath=self.root/'state.sqlite3'
-        with sqlite3.connect(dbpath) as db:
+        with closing(sqlite3.connect(dbpath)) as db, db:
             db.execute('UPDATE credentials SET previous_until=0')
             payload=str(db.execute('SELECT * FROM credentials').fetchall())
             self.assertNotIn(new,payload)
@@ -82,7 +83,7 @@ class AutomationTests(unittest.TestCase):
 
     def test_backup_retention_keeps_minimum_and_unmanaged_files(self):
         database=self.root/'state.sqlite3'
-        with sqlite3.connect(database) as db:schema.initialize(db);db.execute('CREATE TABLE payload (value TEXT)');db.execute("INSERT INTO payload VALUES ('protected')")
+        with closing(sqlite3.connect(database)) as db, db:schema.initialize(db);db.execute('CREATE TABLE payload (value TEXT)');db.execute("INSERT INTO payload VALUES ('protected')")
         folder=self.root/'backups';folder.mkdir()
         for n in range(5):
             p=folder/f'auto-{n}.sqlite3';p.write_bytes(b'old');os.utime(p,(1,1))
@@ -92,7 +93,7 @@ class AutomationTests(unittest.TestCase):
         backups.backups(database,policy,now=time.time())
         auto=list(folder.glob('auto-*.sqlite3'));self.assertEqual(len(auto),3);self.assertTrue(keep.exists())
         new=max(auto,key=lambda p:p.stat().st_mtime)
-        with sqlite3.connect(new) as db:self.assertEqual(db.execute('SELECT value FROM payload').fetchone()[0],'protected')
+        with closing(sqlite3.connect(new)) as db, db:self.assertEqual(db.execute('SELECT value FROM payload').fetchone()[0],'protected')
         backups.backups(database,policy,now=time.time());self.assertEqual(len(list(folder.glob('auto-*.sqlite3'))),3)
 
     def bundle(self):

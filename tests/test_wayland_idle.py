@@ -68,6 +68,7 @@ class Compositor:
         self.listener.close();self.thread.join(2)
 
 
+@unittest.skipUnless(hasattr(socket, 'AF_UNIX'), 'Requires Unix domain sockets')
 class IdleTests(unittest.TestCase):
     def setUp(self):
         self.provider=w.Provider()

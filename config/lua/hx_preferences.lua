@@ -36,11 +36,23 @@ end
 function M.init(env)
   local context = env.engine.context
   env.ignore_history = false
+  env.ctrl_space_down = false
+  env.ctrl_space_target = nil
   -- 鼠须管只负责中文；macOS 的 Ctrl+Space 由系统切换输入源。
   env.chinese_only = rime_api and rime_api.get_distribution_code_name
       and rime_api.get_distribution_code_name() == "Squirrel" or false
+  env.weasel = rime_api and rime_api.get_distribution_code_name
+      and rime_api.get_distribution_code_name() == "Weasel" or false
   -- 其他前端切到英文时，提交去掉分隔符的拼音。
   env.option_connection = context.option_update_notifier:connect(function(ctx, name)
+    -- Windows 前端/系统热键可能在同一按键周期再次翻转模式。
+    -- 仅保护本处理器接收的 Ctrl+Space；释放后不干预外部切换。
+    if name == "ascii_mode" and env.weasel and env.ctrl_space_down
+        and env.ctrl_space_target ~= nil
+        and ctx:get_option("ascii_mode") ~= env.ctrl_space_target then
+      ctx:set_option("ascii_mode", env.ctrl_space_target)
+      return
+    end
     if name == "ascii_mode" and ctx:get_option("ascii_mode") then
       if env.chinese_only then
         ctx:set_option("ascii_mode", false)
@@ -61,13 +73,31 @@ function M.fini(env)
 end
 
 function M.func(key, env)
-  if key:release() then return noop end
+  -- 一次物理按键只切换一次；吞掉配对的空格释放，避免前端继续处理快捷键。
+  -- 即使先释放 Control，空格释放也不再带 Control 修饰位。
+  if key:release() then
+    if key.keycode == 32 and env.ctrl_space_down then
+      env.ctrl_space_down = false
+      env.ctrl_space_target = nil
+      return accepted
+    end
+    return noop
+  end
   local context = env.engine.context
   local repr = key:repr()
+  if env.ctrl_space_down and key.keycode ~= 32
+      and key.keycode ~= 65507 and key.keycode ~= 65508 then
+    -- 焦点切换可能丢失释放；其他按下事件结束旧保护，避免锁住语言。
+    env.ctrl_space_down = false
+    env.ctrl_space_target = nil
+  end
   if repr == "Control+space" then
     if env.chinese_only then return noop end
+    if env.ctrl_space_down then return accepted end
+    env.ctrl_space_down = true
+    env.ctrl_space_target = not context:get_option("ascii_mode")
     commit_code(context, env.engine)
-    context:set_option("ascii_mode", not context:get_option("ascii_mode"))
+    context:set_option("ascii_mode", env.ctrl_space_target)
     return accepted
   end
   if key:ctrl() or key:alt() or key:super() then

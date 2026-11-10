@@ -35,8 +35,9 @@ def verify_log(text):
     resume=text.rfind('Resuming service.')
     if (len(starts)!=1 or len(summaries)!=1 or
             int(summaries[0][1])<1 or int(summaries[0][2])!=0 or
-            not starts[0].start()<summaries[0].start()<resume):
-        raise ValueError('未确认本轮方案编译成功并恢复服务')
+            not starts[0].start()<summaries[0].start() or
+            (resume >= 0 and resume < summaries[0].start())):
+        raise ValueError('未确认本轮方案编译成功')
     totals=re.findall(r'(\d+) tasks ran: (\d+) success, (\d+) failure',text)
     if any(int(n)!=int(ok) or int(n)<1 or int(failed) for n,ok,failed in totals):
         raise ValueError('小狼毫部署任务未全部成功')
@@ -65,7 +66,9 @@ def run(target,policy,session,idle_provider=None):
             if len(logs)!=1:raise ValueError('未找到本次部署唯一日志')
             text=logs[0].read_text(encoding='utf-8',errors='replace');verify_log(text)
             subprocess.run([sys.executable,str(Path(native.__file__).resolve()),'--probe'],check=True,timeout=10,creationflags=subprocess.CREATE_NO_WINDOW,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-            result={'status':'success','pid':child.pid,'input_service_probe':'passed'}
+            # Some installed builds omit Configurator INFO messages. Recovery
+            # is independently verified by the mandatory IPC probe above.
+            result={'status':'success','pid':child.pid,'log':str(logs[0]),'input_service_probe':'passed'}
             atomic_write(session/'receipt.json',json.dumps(result).encode());return result
         except BaseException:
             if child.poll() is None:child.kill()

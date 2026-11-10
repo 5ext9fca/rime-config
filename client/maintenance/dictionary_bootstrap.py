@@ -99,7 +99,7 @@ def ensure(target,sync_dir,device,names,session,platform,deployer=None,builder=N
                     if is_link(path) or not (path.is_file() or path.is_dir()):raise ValueError('原生初始化输出包含异常路径')
                     if os.name!='nt':path.chmod(0o600 if path.is_file() else 0o700)
                     if path.is_file():
-                        with path.open('rb') as stream:os.fsync(stream.fileno())
+                        with path.open('r+b') as stream:os.fsync(stream.fileno())
                 if os.name!='nt':
                     for directory in sorted((p for p in entries if p.is_dir()),key=lambda p:len(p.parts),reverse=True):
                         descriptor=os.open(directory,os.O_RDONLY)

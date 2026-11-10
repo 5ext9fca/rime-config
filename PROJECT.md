@@ -808,3 +808,47 @@ Ubuntu 用户服务已通过安装器更新并启用新入口，version=4 实际
 3. 检查配置应用、云快照传输、原生合并/导出分别记录；空闲或间隔未满足时 deferred 为正常，不能当作合并成功。确认新入口后台任务在重新登录后启动，原有备份与基线仍可读取。
 
 Windows/macOS 现场结果由用户另行确认；本轮没有声称已替用户完成两端的迁移或 UI 验收。
+
+### Windows 新入口续验（2026-11-10，排除桌面 UI）
+
+Windows 工作副本由 `7cbbe68` 快进至 `1e30035`，随后按用户要求合并 `f6a5020`，先保存本机配置与旧任务 XML，再迁移当前用户任务。持续参数、设备身份、目标目录、旧备份和同步基线保留；任务使用 `client/platforms/windows/windows_runner.py` → 根目录 `rime.py`，登录和每分钟恢复触发器启用，IgnoreNew，现场为 Running 且仅一个 pythonw 同步进程。没有实际注销或重启会话，因此本轮未独立证明新入口在重新登录后启动。
+
+现场修复与验证：
+
+- 首次词典落地及服务端备份的文件同步改用可写句柄，修复 Windows `fsync` 的 Bad file descriptor；测试显式关闭 SQLite 连接，避免临时目录被占用。Wayland socket 测试按平台能力跳过，旧调度兼容测试改用当前解释器绝对路径。
+- 新增真实 Windows DLL 首次建库、重复调用不改已有库测试；独立原生验收覆盖两设备合并、逐词典范围和多轮词频稳定，全部使用隔离目录。
+- Git 检出产生的十处 CRLF/LF 差异曾触发配置冲突。保存冲突双方证据，逐项确认只有换行差异后统一 LF，未使用全局冲突选边；`config/.gitattributes` 固定文本检出换行，避免复发。
+- 现场 `/deploy` 日志确认 5 个方案编译成功，但安装版本没有输出 `Resuming service`。完成校验保留唯一且有序的 workspace 开始/编译全成功、零错误和进程退出要求，服务恢复由强制 IPC 空会话探测独立确认；如出现恢复日志仍检查顺序。新增 IPC 探测失败不得发布成功凭据的回归。官方控制流程参见 [小狼毫 0.17.4 Configurator](https://github.com/rime/weasel/blob/0.17.4/WeaselDeployer/Configurator.cpp)。首次误判记录与 900 秒重试时间保留。
+- 最终自动回归 170 项：153 通过，17 项因平台/权限/运行库条件跳过。隔离输入引擎验证雾凇/朙月中文、9 候选、英文候选、Ctrl+Space 去分隔符提交及切换、英文和拆字有效规则通过；不操作桌面 UI，不访问活动数据库。
+- 23:30:27 原生全量同步成功，三项任务全成功、IPC probe passed，unsafe=false；两份本机导出与真实 HTTPS 版本 39 完整字节一致。17 个配置范围项（含 null 删除标记）与 `config/` 一致，适用配置与实际目录一致。配置应用、快照传输、原生导入分别留有状态。
+
+收尾期间另一端更新 Lua 与鼠须管配置，随后合并 `f6a5020`。重试逻辑采用远端实现及其回归：仅未完成的部署保留失败退避，成功后的新资源仍须通过空闲检查，但不沿用失败等待；没有修改原生全量同步的限频策略。23:47:50 新版本真实 `/sync` 再次成功，23:48:07 自动部署成功，5 个方案编译成功、0 失败，独立 IPC 探测通过，资源指纹复核一致。后续工作流部署阶段为 success/unchanged，无 failed/blocked；真实 HTTPS 版本 44 的 17 个范围项及两份本机快照字节一致。最终隔离引擎按新版本脚本复验通过，Windows 的 Ctrl+Space 行为保持正常；当前任务 Running、单个 pythonw 进程。
+
+私有证据保存在 `private/windows-upgrade-20261110/`（测试日志、旧配置/任务备份、换行冲突证据、任务与 HTTPS 核对），独立原生结果为 `private/native-acceptance-xk877m1v/result.json`，最终引擎结果为 `private/engine-acceptance-3ok2yn0d/result.json`。真实 Windows UI、应用初始英文的现场操作与重新登录触发来源仍不在上述通过结论内；macOS 未在本机验收。
+
+
+### Windows 图标与 Ctrl+Space 释放修正（2026-11-10）
+
+用户报告自定义图标回退默认，PiliPlus 中 Ctrl+Space 有时松开后恢复原语言。检查确认实际 `icons/chinese.ico`、`icons/english.ico` 仍在，但两个已编译方案均缺少 schema 图标引用。已在雾凇与朙月自定义补丁恢复 `schema/icon`、`schema/ascii_icon`；图标二进制仍为本机既有资源，不进入个人配置文本云同步，也未删除或覆盖资源文件。
+
+Lua 原实现每次 Control+space 按下都翻转状态，且所有 release 均放行。现按物理空格按键周期只切换一次，抑制重复按下，并消费配对的空格释放；先释放 Control 时也能结束该周期。不消费无关按键释放，鼠须管继续由系统切换输入源。Windows 本机另有 Ctrl+Space 输入法系统热键；小狼毫 TSF 的 compartment 回调亦能翻转 ascii_mode，因此应用/系统层仍可能参与，不能把 DLL 修复等同于已证明 PiliPlus 唯一根因。实现依据参见 [0.17.4 KeyEventSink](https://github.com/rime/weasel/blob/0.17.4/WeaselTSF/KeyEventSink.cpp) 与 [Compartment](https://github.com/rime/weasel/blob/0.17.4/WeaselTSF/Compartment.cpp)。本轮没有修改系统注册表热键。
+
+回归 170 项：153 通过、17 条件跳过；真实 DLL 隔离引擎验证重复按下、配对释放、先释放 Control、连续切换和去分隔符提交通过。后台完成备份、配置应用和自动部署：5 个方案成功、0 失败，IPC 恢复与资源指纹复核通过；两个实际编译方案均含图标路径，HTTPS 版本 46 的配置字节一致。证据位于 `private/windows-input-fix/` 和 `private/engine-acceptance-tdylt0at/result.json`。桌面工具拒绝访问 PiliPlus，因此该应用窗口中的表现与图标视觉结果尚待用户复验。
+
+
+### PiliPlus / Flutter 短按双切换续验（2026-11-11）
+
+用户反馈上一轮仅长按可用，短按仍两跳回原语言。启用五分钟、64 KiB 上限的本机临时诊断，仅记录 Ctrl/Space 事件和 ascii_mode，不记录输入正文。用户在 PiliPlus 复现后，日志显示每次只有一次 Lua Control+space 按下，却在切到英文后约 3～4 ms 出现无对应 Lua 按键的反向 option 更新；长按期间多次外部模式翻转。此前“只处理重复按下及释放”的修复不足。Flutter 的 Windows 键盘重派发与 Weasel TSF compartment 路径提供机制背景，但日志并不能进一步区分是哪一层发起外部更改。
+
+正式修复仅在发行标识 Weasel 下生效：本处理器接受 Ctrl+Space 后记录本次目标模式；空格尚未释放时抵消外部反向 ascii_mode 更新，保持第一次切换结果。配对空格释放立即解除保护，先释放 Control 亦可；其他普通按下事件清除遗留状态以恢复丢失释放的情况。Linux 不启用该 option 保护，Squirrel 中文锁定不变，未修改 Windows 注册表或全局热键。
+
+模拟回归覆盖双向外部反转、重复通知、释放后外部菜单切换及丢失释放后的恢复；真实 DLL 用 Weasel 发行标识注入外部模式变更，并验证按下/重复/释放、Ctrl 先释放、拼音提交，全部通过。完整回归 170 项，153 通过、17 条件跳过。用户已明确确认 PiliPlus 短按与长按均正常。临时诊断代码和启用标记已移除；证据保留 `private/flutter-shortpress/`，不进入 Git。此前记录中 PiliPlus 待复验项由此次用户确认补齐。
+
+
+### 单次立即部署测试接口（2026-11-11）
+
+新增 `--deploy-now` 独立 CLI 路由：runtime 完成目录/状态边界校验后分派 `application/deployment_test.py`，使用原配置计划、备份和执行前复核应用 `config/`，随后调用 deployment 的 force 路径。force 只略过部署的 unchanged 与 retry_at 判定，平台执行器为本次部署传入显式手动空闲许可；不修改或替换共享 IdleProvider，不影响原生词典维护。外部包装器获得零空闲阈值，但仍须提供 success/deferred 完成凭据。失败、未完成返回非零；失败记录保留，下一次普通后台执行仍遵守退避。
+
+部署策略在内存副本中启用，未改写 automation.json；个人配置 enabled/files 仍是应用授权边界。记录 `deployment-test-result.json`，不覆盖完整工作流结果；不进入 cloud_sync、dictionary exchange、第三方下载或词典限频逻辑。CLI 拒绝持续服务、初始化、发现及同步动作组合，服务持续参数白名单不含此一次性开关。dry-run 不创建状态、路径记忆或平台执行器。
+
+新增五项测试覆盖只读预览、真实临时配置备份、重复强制执行、失败重试、CLI 隔离及手动空闲许可作用域。最终回归 175 项（158 通过、17 条件跳过）。Windows 实机执行 `python rime.py --deploy-now` 返回 0，完成凭据 success，执行前后 native-all/schedule.json SHA-256 不变；清除临时诊断后的 Weasel DLL 引擎复验通过。私有证据为 `private/flutter-shortpress/deploy-now-result.json`、`tests-final.log`、`engine-final.log`。

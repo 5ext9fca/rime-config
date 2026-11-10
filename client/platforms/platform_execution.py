@@ -46,9 +46,18 @@ class UnixExecutor:
                         '--method','org.fcitx.Fcitx.Controller1.ReloadAddonConfig','classicui'],
                        check=True,timeout=30,stdout=subprocess.DEVNULL)
 
-    def deploy(self, target, policy, session):
+    def deploy(self, target, policy, session, immediate=False):
         from client.maintenance.deployment import execute_platform
-        return execute_platform(self.platform, target, policy, session,self.idle_provider)
+        provider = self.idle_provider
+        if immediate:
+            from client.maintenance.idle import Observation
+            import time
+            class ManualDeployment:
+                def observe(self, threshold):
+                    return Observation('idle', 'explicit-deploy-now', time.monotonic(), 'manual-request')
+            provider = ManualDeployment()
+            policy = dict(policy, idle_seconds=0)
+        return execute_platform(self.platform, target, policy, session,provider)
 
     def service(self, action, args, script, target=None):
         from client.services.unix_service import manage_unix

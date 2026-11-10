@@ -41,7 +41,7 @@ def fingerprint(target,names):
     return hashlib.sha256(json.dumps(values).encode()).hexdigest()
 
 
-def deploy(target,names,state,policy,executor,dry_run=False,now=None):
+def deploy(target,names,state,policy,executor,dry_run=False,now=None,force=False):
     if not policy['enabled'] or not names:return 'disabled'
     target=Path(target);state=Path(state);safe_path(state)
     value=fingerprint(target,names)
@@ -51,17 +51,17 @@ def deploy(target,names,state,policy,executor,dry_run=False,now=None):
         lock_exclusive(lock)
         path=safe_path(state,'deployment.json');record=json.loads(path.read_text()) if path.exists() else {}
         if record.get('target',str(target))!=str(target):raise ValueError('Deployment state target mismatch')
-        if record.get('fingerprint')==value and record.get('status')=='success':return 'unchanged'
+        if not force and record.get('fingerprint')==value and record.get('status')=='success':return 'unchanged'
         now=time.time() if now is None else now
         # Retry backoff belongs to unfinished work, not a successful deployment
         # followed by a new configuration change.
-        if record.get('status')!='success' and now<record.get('retry_at',0):return 'deferred'
+        if not force and record.get('status')!='success' and now<record.get('retry_at',0):return 'deferred'
         session=state/'runs'/uuid.uuid4().hex;session.mkdir(parents=True,mode=0o700)
         record={'target':str(target),'status':'running','retry_at':now+policy['retry_seconds'],'session':session.name,'requested_fingerprint':value}
         atomic_write(path,json.dumps(record).encode())
         phase='frontend'
         try:
-            result=executor.deploy(target,policy,session)
+            result=executor.deploy(target,policy,session,immediate=True) if force else executor.deploy(target,policy,session)
             atomic_write(session/'receipt.json',json.dumps(result).encode())
             phase='resource-recheck'
             actual=fingerprint(target,names) if result['status']=='success' else value

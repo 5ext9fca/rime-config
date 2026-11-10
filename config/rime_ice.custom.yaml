@@ -1,5 +1,7 @@
 # 雾凇全拼：简体、纠错和混输沿用原方案，模糊音规则保持未启用。
 patch:
+  "schema/icon": icons/chinese.ico
+  "schema/ascii_icon": icons/english.ico
   "menu/page_size": 9
   "switches/@2/reset": 0  # traditionalization：简体
   "switches/@3/reset": 1  # emoji
