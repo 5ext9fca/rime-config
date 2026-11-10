@@ -27,6 +27,49 @@ def frontend():
     return binary,pid
 
 
+def unbuffered(binary,pid):
+    # Inspect only the flag; never persist or print the process environment.
+    value=subprocess.run(['ps','eww','-p',str(pid),'-o','command='],
+                         capture_output=True,text=True,check=True,timeout=10).stdout
+    return bool(re.search(r'(?:^|\s)GLOG_logbufsecs=0(?:\s|$)',value))
+
+
+def prepare_logging(binary,pid):
+    """One graceful relaunch per frontend lifetime, under the idle/maintenance lock.
+
+    glog's timer is checked on writes, not by a background flush thread. The
+    final task summary can otherwise stay buffered indefinitely while idle.
+    Use a per-app launch environment, never a global launchctl environment.
+    """
+    if unbuffered(binary,pid):return binary,pid
+    subprocess.run([str(binary),'--quit'],check=True,timeout=15,
+                   stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    deadline=time.monotonic()+15
+    while time.monotonic()<deadline:
+        status=subprocess.run(['pgrep','-x','Squirrel'],capture_output=True,timeout=10)
+        if status.returncode==1:break
+        if status.returncode!=0:raise ValueError('无法确认鼠须管已正常退出')
+        time.sleep(.2)
+    else:raise ValueError('鼠须管退出超时，未启动第二个实例')
+    subprocess.run(['/usr/bin/open','-g','--env','GLOG_logbufsecs=0',
+                    '-a',str(binary.parents[2])],check=True,timeout=15,
+                   stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    deadline=time.monotonic()+30
+    while time.monotonic()<deadline:
+        try:
+            current=frontend()
+        except (ValueError,subprocess.CalledProcessError):
+            time.sleep(.2);continue
+        if current[0]!=binary or not unbuffered(*current):
+            raise ValueError('鼠须管未以无缓冲日志启动，停止自动维护')
+        # Startup maintenance is joined by the frontend before accepting CLI
+        # notifications; allow its initial log file to be created first.
+        time.sleep(1)
+        print('鼠须管已在空闲时重新启动，启用进程专属无缓冲日志。',flush=True)
+        return current
+    raise ValueError('鼠须管重新启动超时')
+
+
 def verify_tasks(text,operation,names):
     if re.search(r'^E\d{4,8}\s',text,re.MULTILINE):raise ValueError('鼠须管原生维护日志包含错误')
     totals=re.findall(r'(\d+) tasks ran: (\d+) success, (\d+) failure',text)
@@ -50,6 +93,8 @@ def run(target,idle,session,operation,names=(),prepare=None,idle_provider=None):
     if not provider.observe(idle).permits_maintenance:return {'status':'deferred','reason':'input-active'}
     with maintenance_lock(target):
         binary,pid=frontend()
+        if not provider.observe(idle).permits_maintenance:return {'status':'deferred','reason':'input-active'}
+        binary,pid=prepare_logging(binary,pid)
         if prepare is not None:prepare()
         root=Path(tempfile.gettempdir())/'rime.squirrel'
         def files():

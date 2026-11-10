@@ -33,7 +33,7 @@ python3 rime.py --dry-run
 python3 rime.py
 ```
 
-应用完成后，客户端按 `automation.json` 自动安排重新部署。本机 Fcitx5 会等待空闲；KDE Wayland 使用事件式输入空闲检测，接口不可用时等待锁屏。Windows/macOS 现有内置部署适配器，也可配置提供完成凭据的包装器；当前新增适配器尚待对应平台实机验收。
+应用完成后，客户端按 `automation.json` 自动安排重新部署。本机 Fcitx5 会等待空闲；KDE Wayland 使用事件式输入空闲检测，接口不可用时等待锁屏。Windows/macOS 现有内置部署适配器，也可配置提供完成凭据的包装器；macOS 已完成实机验收，Windows 新增部署适配器仍待实机复验。
 
 | 平台 | 默认发现位置 |
 | --- | --- |
@@ -172,7 +172,8 @@ python3 rime.py --third-party-only --refresh-third-party
 
 项目已配置默认简体、不启用模糊音，沿用雾凇纠错和中英混输，开启 Emoji 与补全。主要操作：
 
-- `Ctrl+Space` 切换中英文，Shift 不切换，CapsLock 保留大写功能。切换时提交去掉空格和分隔符的拼音，例如 `xi'an hao` → `xianhao`。
+- Windows/Linux：`Ctrl+Space` 切换中英文，Shift 不切换，CapsLock 保留大写功能。切换时提交去掉空格和分隔符的拼音，例如 `xi'an hao` → `xianhao`。
+- macOS：鼠须管固定中文，终端与编辑器也使用中文模式。`Ctrl+Space` 由系统处理，英文输入使用系统英文输入源；鼠须管内部的英文状态会自动恢复为中文。用户已明确接受此行为。
 - Windows 小狼毫使用 `-`、`=` 翻页；竖排列表、每页 9 候选、14 号字，黑/白半透明背景随系统主题切换，绿色圆角高亮。窗口圆角 12、候选圆角 7、阴影半径 12，背景约 90% 不透明，文字保持不透明。
 - 不要求中英文状态跨窗口共享；终端和代码编辑器默认英文，仍可手动切换。程序名单及外观在 [`weasel.custom.yaml`](config/weasel.custom.yaml) 中调整，仅适用于 Windows 小狼毫。
 - 中文模式下，标点根据当前候选或最近提交字符选择中英文形式。无法读取应用任意光标前文本，粘贴或移动光标后可能回退中文标点。
@@ -266,16 +267,16 @@ Windows 原生支持已于 2026-11-10 完成本轮验收，由用户确认接受
 
 ## macOS 验收记录
 
-2026-11-10 合并远端后，回归 101 项通过、5 项 Windows 专用测试跳过，隔离词典原生合并和重复词频检查通过。Mac 已以独立设备接入 VPS：7 个配置、2 份本机快照核对一致，鼠须管实际合并 Windows 词条成功，重复 HTTPS 同步保持版本 18。新版 LaunchAgent 运行正常；macOS UI 已于 2026-11-10 由用户确认验收通过，验收版本启用系统毛玻璃、恢复默认行距 5。
+2026-11-10 合并远端至 `1e30035` 并升级新入口后，回归 167 项：160 通过、7 项其他平台测试跳过。真实引擎、隔离原生合并、首次词典导入与重复词频检查通过；后台自动部署已取得真实成功凭据，部署后资源指纹一致；LaunchAgent 更新、卸载恢复、异常重启和单实例通过。先前 UI 和注销登录启动已由用户确认，本轮不重复 UI 验收。
 
-本机正式云配置保存在 Git 忽略的 `remote.local.json`，仓库 `remote.json` 仍是禁用的示例。本机手动执行或重新安装服务时使用：
+本机正式云配置保存在 Git 忽略的 `remote.local.json`，仓库 `remote.json` 仍是禁用的示例。本机已启用内置全量同步，日常执行或重新安装服务时保留参数：
 
 ```bash
-python3 rime.py --remote-config remote.local.json --sync-now
-python3 rime.py --service install --remote-config remote.local.json
+python3 rime.py --remote-config remote.local.json --native-sync-builtin --sync-now
+python3 rime.py --remote-config remote.local.json --native-sync-builtin --service install
 ```
 
-后台目前自动同步配置和快照，**尚未安装 macOS 无人值守原生包装器**。学习数据导出及接收快照导入仍需在鼠须管执行“同步用户资料”，快照传输不等于原生合并。详见 [macOS 公网与原生合并续验](PROJECT.md#macos-公网与原生合并续验2026-11-10)。
+后台现在自动合并、导出及回传个人词典，模式为 `native-all`。输入活跃或未到维护间隔时记录 deferred；`--sync-now` 和服务重启不绕过 900 秒限频。此次实测发现并修复鼠须管日志缓冲导致完成摘要不可见的问题；按默认失败重试恢复后，两个词典取得真实成功凭据，17 个配置范围项（含 1 个删除标记）和 2 份本机快照与 HTTPS revision 40 一致。日志配置与首次空闲重启行为见 [内置维护说明](#内置原生维护)，详细证据见 [macOS 新入口与内置维护续验](PROJECT.md#macos-新入口与内置维护续验2026-11-10)。
 
 Ubuntu 实机验收已完成，结果及能力边界见 [Ubuntu 实机验收](PROJECT.md#ubuntu--linux-实机验收2026-11-10)。
 
@@ -331,7 +332,7 @@ macOS 注销后重新登录自动启动验收已由用户确认完成。恢复�
 
 `automation.json` 每轮重读，也可用 `--automation-config /绝对路径/文件.json` 指定，并随服务安装参数持久化。它不属于云同步内容，远端主题不能携带部署命令。部署与词典原生合并是两件事；自动部署不等于已实现无人值守词典合并。
 
-KDE Wayland 通过 `ext_idle_notifier_v1` 版本 2 持续订阅输入空闲及恢复事件，达到配置阈值后可自动重新部署，无需锁屏。首次连接、服务重启或阈值变化后重新等待阈值；断线、接口缺失时退回锁屏判断。监听复用 Python 标准库，无需新增软件包；用户服务须具有当前会话的 `WAYLAND_DISPLAY` 和 `XDG_RUNTIME_DIR`。单轮进程通常先记录 deferred，持续后台运行才能保留监听。Windows、macOS 已增加内置部署适配器（实机验收待完成）；自定义包装器仍优先，可在 `deployment.commands` 按平台配置绝对路径参数数组；包装器须检查 `RIME_DEPLOY_IDLE_SECONDS`，通过前端部署并等待真实完成，在 `RIME_DEPLOY_RECEIPT` 写入 `{"status":"success"}`，未开始时可写 `{"status":"deferred"}`。目标由 `RIME_USER_DIR` 传入；240 秒超时或缺少凭据视为失败。不能把异步通知返回 0 当成成功。
+KDE Wayland 通过 `ext_idle_notifier_v1` 版本 2 持续订阅输入空闲及恢复事件，达到配置阈值后可自动重新部署，无需锁屏。首次连接、服务重启或阈值变化后重新等待阈值；断线、接口缺失时退回锁屏判断。监听复用 Python 标准库，无需新增软件包；用户服务须具有当前会话的 `WAYLAND_DISPLAY` 和 `XDG_RUNTIME_DIR`。单轮进程通常先记录 deferred，持续后台运行才能保留监听。Windows、macOS 已增加内置部署适配器（macOS 实机验收已完成，Windows 待复验）；自定义包装器仍优先，可在 `deployment.commands` 按平台配置绝对路径参数数组；包装器须检查 `RIME_DEPLOY_IDLE_SECONDS`，通过前端部署并等待真实完成，在 `RIME_DEPLOY_RECEIPT` 写入 `{"status":"success"}`，未开始时可写 `{"status":"deferred"}`。目标由 `RIME_USER_DIR` 传入；240 秒超时或缺少凭据视为失败。不能把异步通知返回 0 当成成功。
 
 后台应用日志位于当前 `--state-dir` 下的 `logs/rime-日期-编号.log`（默认 `~/.local/state/rime-config/<目标标识>/logs/`）。过期清理只处理这些受管理日志，保留同步基线、待确认上传、个人快照、配置备份及历史验收证据。旧版 launchd/Windows 外层日志和系统 journal 仍由原有机制管理，不进行全局清理。服务端应用日志也按 30 天清理，Docker 启动日志另限制为 3×10 MiB。
 
@@ -373,11 +374,13 @@ python3 rime.py --remote-config remote.local.json --native-sync-builtin --servic
 
 Windows 内置重新部署从当前用户/机器注册表定位唯一 `WeaselDeployer.exe`，检查注册目标、输入空闲和部署互斥，运行 `/deploy`，核对本次进程日志并探测输入服务恢复。macOS 使用已运行的唯一鼠须管进程、CoreGraphics 空闲检测及 `--reload`，等待新增日志的部署任务完成。自定义 `deployment.commands` 仍优先。
 
-本轮源码、模拟回归和 Ubuntu 隔离引擎检查已完成；Windows/macOS 设备暂不可访问，不能将这些检查视为对应平台端到端验收。Ubuntu 后台已按用户批准切换到内置全量入口；原生维护仍须满足空闲/锁屏条件，状态 deferred 不表示导入成功。
+macOS 内置维护需要及时读取鼠须管日志。客户端在真实空闲且取得维护锁后检查鼠须管的 `GLOG_logbufsecs=0`；若未设置，会正常退出鼠须管，再通过 `open --env` 以进程专属无缓冲日志重新启动，短暂中断输入。每个已正确配置的鼠须管进程只需检查，不重复重启；系统登录后若启动了未带该变量的实例，下次空闲维护会重新配置。不会修改全局 launchctl 环境或应用包。随后以新进程 PID 和本轮日志偏移确认原生任务完成；重启失败或缺少完成摘要时继续禁止发布未经确认的快照，并保留重试限频。
+
+Ubuntu 和 macOS 已完成内置原生同步及重新部署实机验收；Windows 新增部署适配器仍待对应设备复验。两端后台已启用内置全量入口，原生维护仍须满足空闲/锁屏条件，状态 deferred 不表示导入成功。
 
 兼容配置准备新增 `melt_eng.schema.yaml`、`radical_pinyin.schema.yaml`、对应两个 custom 补丁、`hx_english_algebra.yaml` 和 `grammar.yaml`。它们消除内部拼写回引，并保留原有编译结果；两个方案是项目维护的兼容副本，第三方词典刷新不更新它们。用户已批准 VPS 范围扩展及本机启用：生产清单现为 14 个配置文件，六个兼容文件已通过 HTTPS 同步并应用到 Ubuntu。
 
-本机上线验证：用户锁屏后，Fcitx5 自动重新部署与两个个人词典的原生全量合并均成功；14 个配置和两份本机快照与 HTTPS 返回一致（验收 revision=30）。随后维护计划按 900 秒最小间隔延后，服务 active/running、无异常重启。真实部署日志中未出现本轮针对的循环依赖或缺失 grammar 警告。Windows/macOS 新适配器仍待相应设备实机验收。
+本机上线验证：用户锁屏后，Fcitx5 自动重新部署与两个个人词典的原生全量合并均成功；14 个配置和两份本机快照与 HTTPS 返回一致（验收 revision=30）。随后维护计划按 900 秒最小间隔延后，服务 active/running、无异常重启。真实部署日志中未出现本轮针对的循环依赖或缺失 grammar 警告。上述为 Ubuntu 阶段记录；macOS 后续验收结果见 [macOS 验收记录](#macos-验收记录)，Windows 新增部署适配器仍待实机复验。
 
 ## 远端独有词典首次导入与支持范围
 
@@ -394,4 +397,4 @@ Windows 内置重新部署从当前用户/机器注册表定位唯一 `WeaselDep
 
 Ubuntu 的 `config/fcitx5/input.json` 管理前端输入偏好，通过 Fcitx5 D-Bus 备份、合并、应用并读回验证，保留无关快捷键。`Ctrl+Space` 交给 Rime Lua 中英切换；`Ctrl+Alt+Space` 用于激活/退出 Fcitx5；Shift 不临时切换，不跨窗口共享输入状态。需要系统 Python 的 PyGObject/Gio（Ubuntu `python3-gi`）。切换前端本身时提交原始输入；Rime 内部中英切换则提交去分隔符拼音。该 JSON 只有纳入同步清单且启用配置处理时才应用。
 
-三端共用 `default.custom.yaml`、方案补丁和 `lua/hx_preferences.lua`；应用初始英文名单分别位于 Windows 的 `weasel.custom.yaml`、macOS 的 `squirrel.custom.yaml` 和 Linux 的 `fcitx5.custom.yaml`。应用标识由前端提供，Wayland/XWayland 或发行渠道可能不同；未匹配时沿用方案默认，手动切换始终可用。
+三端共用 `default.custom.yaml`、方案补丁和 `lua/hx_preferences.lua`；应用初始英文名单分别位于 Windows 的 `weasel.custom.yaml`、Linux 的 `fcitx5.custom.yaml`；macOS 的 `squirrel.custom.yaml` 改为中文初始状态，共用 Lua 根据 Squirrel 前端身份锁定中文。应用标识由前端提供，Wayland/XWayland 或发行渠道可能不同；Windows/Linux 未匹配时沿用方案默认，手动切换仍可用；macOS 始终保持中文。

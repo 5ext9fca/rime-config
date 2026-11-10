@@ -15,6 +15,7 @@ from server.app import create_app
 import client.application.cloud_sync as remote
 import client.transport.http_transport as http_transport
 from client.core.configuration import apply
+from test_dictionary_bootstrap import NATIVE_MANAGER
 
 
 def encoded(text):
@@ -296,23 +297,24 @@ class RemoteTests(ServerFixture):
             with self.assertRaises(ValueError):
                 http_transport.load_remote(path)
 
-    @unittest.skipUnless(sys.platform.startswith('linux') and __import__('shutil').which('rime_dict_manager'),'Requires installed librime tools')
+    @unittest.skipUnless(NATIVE_MANAGER,'Requires installed librime tools')
     def test_remote_only_dictionary_first_landing_and_upload(self):
-        import subprocess,shutil
+        import subprocess
+        native_platform='macos' if sys.platform=='darwin' else 'linux'
         from client.maintenance.native_sync import FullNativeSync
         from client.maintenance.dictionary_bootstrap import ensure
         self.assertEqual(self.upload(dictionaries={'rime_ice':remote.encode(snapshot('a'))})[0],200)
         root=self.root/'b';target=root/'rime';target.mkdir();(target/'installation.yaml').write_text('installation_id: b\n')
         native=FullNativeSync(target,target/'sync','b',self.root/'scope.json',root/'native',builtin=True)
         class RealIsolatedExecutor:
-            platform='linux'
+            platform=native_platform
             def observe_idle(self,threshold,delegated=False):
                 from client.maintenance.idle import Observation
                 return Observation('idle','isolated-test',0)
             def native(self,**context):
                 assert context['names']=={'rime_ice'},'Completion scope must include the new remote-only name'
-                ensure(context['target'],context['sync_dir'],context['device'],context['names'],context['session'],'linux')
-                subprocess.run([shutil.which('rime_dict_manager'),'--sync'],cwd=context['target'],check=True,capture_output=True)
+                ensure(context['target'],context['sync_dir'],context['device'],context['names'],context['session'],native_platform)
+                subprocess.run([NATIVE_MANAGER,'--sync'],cwd=context['target'],check=True,capture_output=True)
                 return {'status':'success','names':sorted(context['names'])}
         native.executor=RealIsolatedExecutor()
         self.run_sync('b',native=native)

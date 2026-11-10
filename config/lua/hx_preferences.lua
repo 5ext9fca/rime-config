@@ -36,12 +36,20 @@ end
 function M.init(env)
   local context = env.engine.context
   env.ignore_history = false
-  -- 前端菜单切到英文时，也提交去掉分隔符的拼音。
+  -- 鼠须管只负责中文；macOS 的 Ctrl+Space 由系统切换输入源。
+  env.chinese_only = rime_api and rime_api.get_distribution_code_name
+      and rime_api.get_distribution_code_name() == "Squirrel" or false
+  -- 其他前端切到英文时，提交去掉分隔符的拼音。
   env.option_connection = context.option_update_notifier:connect(function(ctx, name)
     if name == "ascii_mode" and ctx:get_option("ascii_mode") then
-      commit_code(ctx, env.engine)
+      if env.chinese_only then
+        ctx:set_option("ascii_mode", false)
+      else
+        commit_code(ctx, env.engine)
+      end
     end
   end)
+  if env.chinese_only then context:set_option("ascii_mode", false) end
   env.commit_connection = context.commit_notifier:connect(function()
     env.ignore_history = false
   end)
@@ -57,6 +65,7 @@ function M.func(key, env)
   local context = env.engine.context
   local repr = key:repr()
   if repr == "Control+space" then
+    if env.chinese_only then return noop end
     commit_code(context, env.engine)
     context:set_option("ascii_mode", not context:get_option("ascii_mode"))
     return accepted

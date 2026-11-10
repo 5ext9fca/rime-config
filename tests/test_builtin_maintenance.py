@@ -97,6 +97,28 @@ class CompatibilityTests(unittest.TestCase):
         self.assertIn('--native-sync-builtin',command(args,Path('/client/sync.py'),Path('/target')))
 
 class SquirrelLogObservationTests(unittest.TestCase):
+    def test_unbuffered_frontend_is_not_restarted(self):
+        import client.platforms.macos.squirrel_maintenance as squirrel
+        binary=Path('/Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel')
+        with patch.object(squirrel,'unbuffered',return_value=True),patch.object(squirrel.subprocess,'run') as run:
+            self.assertEqual(squirrel.prepare_logging(binary,123),(binary,123))
+            run.assert_not_called()
+
+    def test_buffered_frontend_relaunch_uses_app_scoped_environment(self):
+        import client.platforms.macos.squirrel_maintenance as squirrel
+        binary=Path('/Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel')
+        with patch.object(squirrel,'unbuffered',side_effect=[False,True]),patch.object(squirrel,'frontend',return_value=(binary,456)),patch.object(squirrel.time,'sleep'),patch.object(squirrel.subprocess,'run',side_effect=[SimpleNamespace(returncode=0),SimpleNamespace(returncode=1),SimpleNamespace(returncode=0)]) as run:
+            self.assertEqual(squirrel.prepare_logging(binary,123),(binary,456))
+            self.assertEqual(run.call_args_list[-1].args[0],['/usr/bin/open','-g','--env','GLOG_logbufsecs=0','-a',str(binary.parents[2])])
+
+    def test_failed_quit_never_launches_second_frontend(self):
+        import subprocess
+        import client.platforms.macos.squirrel_maintenance as squirrel
+        binary=Path('/Library/Input Methods/Squirrel.app/Contents/MacOS/Squirrel')
+        with patch.object(squirrel,'unbuffered',return_value=False),patch.object(squirrel.subprocess,'run',side_effect=subprocess.TimeoutExpired('quit',15)) as run:
+            with self.assertRaises(subprocess.TimeoutExpired):squirrel.prepare_logging(binary,123)
+            self.assertEqual(run.call_count,1)
+
     def exercise(self,change):
         import contextlib
         import client.platforms.macos.squirrel_maintenance as squirrel
@@ -109,7 +131,7 @@ class SquirrelLogObservationTests(unittest.TestCase):
             def invoke(argv,**kwargs):
                 self.assertEqual(argv,[str(command),'--sync']);change(log)
                 return SimpleNamespace(returncode=0)
-            with patch.object(squirrel.Path,'home',return_value=root),patch.object(squirrel,'maintenance_lock',return_value=contextlib.nullcontext()),patch.object(squirrel,'frontend',return_value=(command,123)),patch.object(squirrel.tempfile,'gettempdir',return_value=str(root)),patch.object(squirrel.subprocess,'run',side_effect=invoke),patch.object(squirrel.time,'sleep'),patch.object(squirrel.time,'monotonic',side_effect=[0,1,181]):
+            with patch.object(squirrel.Path,'home',return_value=root),patch.object(squirrel,'maintenance_lock',return_value=contextlib.nullcontext()),patch.object(squirrel,'frontend',return_value=(command,123)),patch.object(squirrel,'prepare_logging',return_value=(command,123)),patch.object(squirrel.tempfile,'gettempdir',return_value=str(root)),patch.object(squirrel.subprocess,'run',side_effect=invoke),patch.object(squirrel.time,'sleep'),patch.object(squirrel.time,'monotonic',side_effect=[0,1,181]):
                 return squirrel.run(root/'Library/Rime',30,session,'sync',{'a'},idle_provider=SimpleNamespace(observe=lambda threshold:SimpleNamespace(permits_maintenance=True)))
 
     def test_old_success_is_not_acknowledged(self):

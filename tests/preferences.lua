@@ -1,5 +1,5 @@
 local prefs = dofile('config/lua/hx_preferences.lua')
-local function make()
+local function make(distribution, initially_ascii)
   local function notifier()
     local n = { callbacks = {} }
     function n:connect(fn)
@@ -11,7 +11,7 @@ local function make()
     end
     return n
   end
-  local ctx = { input = '', options = {}, last = nil, preview = '' }
+  local ctx = { input = '', options = {ascii_mode=initially_ascii}, last = nil, preview = '' }
   ctx.option_update_notifier = notifier()
   ctx.commit_notifier = notifier()
   function ctx:is_composing() return self.input ~= '' end
@@ -34,7 +34,10 @@ local function make()
     self.commit_notifier:emit(self)
   end
   local env = {engine=engine}
+  local original_api = rime_api
+  rime_api = distribution and {get_distribution_code_name=function() return distribution end} or nil
   prefs.init(env)
+  rime_api = original_api
   return env, ctx, engine
 end
 local function key(repr, code, ctrl)
@@ -72,4 +75,21 @@ assert(prefs.func(key(',',44),env)==2 and not ctx:get_option('ascii_punct'))
 ctx.last=nil; env.ignore_history=false
 assert(prefs.func(key(',',44),env)==2 and not ctx:get_option('ascii_punct'))
 prefs.fini(env)
+-- macOS 即使从应用选项或菜单收到英文状态，也恢复中文且不提交拼音。
+local mac, mac_ctx, mac_engine = make('Squirrel', true)
+assert(mac.chinese_only and not mac_ctx:get_option('ascii_mode'))
+mac_ctx.input = "xi'an"
+mac_ctx:set_option('ascii_mode', true)
+assert(not mac_ctx:get_option('ascii_mode') and mac_ctx.input == "xi'an")
+assert(#mac_engine.output == 0)
+assert(prefs.func(key('Control+space',32,true),mac)==2)
+assert(not mac_ctx:get_option('ascii_mode') and mac_ctx.input == "xi'an")
+prefs.fini(mac)
+for _, distribution in ipairs({'Weasel', 'fcitx-rime'}) do
+  local other, other_ctx = make(distribution, false)
+  assert(not other.chinese_only)
+  assert(prefs.func(key('Control+space',32,true),other)==1)
+  assert(other_ctx:get_option('ascii_mode'))
+  prefs.fini(other)
+end
 print('Lua preference behavior tests passed')

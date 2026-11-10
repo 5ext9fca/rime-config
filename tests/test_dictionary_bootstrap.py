@@ -11,6 +11,12 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from client.maintenance.dictionary_bootstrap import ensure, publish_new
 from client.application.dictionaries import validate_snapshot
 
+MACOS_MANAGERS = [base/'Squirrel.app/Contents/MacOS/rime_dict_manager' for base in
+                  (Path('/Library/Input Methods'), Path.home()/'Library/Input Methods')]
+MACOS_MANAGER = next((path for path in MACOS_MANAGERS if path.is_file()), None)
+NATIVE_MANAGER = (str(MACOS_MANAGER) if sys.platform == 'darwin' and MACOS_MANAGER
+                  else shutil.which('rime_dict_manager') if sys.platform.startswith('linux') else None)
+
 
 def snapshot(owner,name,word,count):
     return (f'# Rime user dictionary\n#@/db_type\tuserdb\n#@/db_name\t{name}\n#@/user_id\t{owner}\n#@/tick\t100\n'
@@ -65,17 +71,18 @@ class BootstrapTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.run_bootstrap(lambda *_:self.fail('invalid input'))
         self.assertFalse((self.target/'remote_only.userdb').exists())
 
-    @unittest.skipUnless(sys.platform.startswith('linux') and shutil.which('rime_dict_manager'),'Requires installed Linux librime tools')
+    @unittest.skipUnless(NATIVE_MANAGER, 'Requires installed Rime dictionary manager')
     def test_real_native_first_import_merge_and_idempotent_retry(self):
+        platform = 'macos' if sys.platform == 'darwin' else 'linux'
         second=self.sync/'second';second.mkdir();(second/'remote_only.userdb.txt').write_bytes(snapshot('second','remote_only','第二设备',5))
-        self.assertEqual(ensure(self.target,self.sync,'local',['remote_only'],self.session,'linux'),['remote_only'])
+        self.assertEqual(ensure(self.target,self.sync,'local',['remote_only'],self.session,platform),['remote_only'])
         def sync():
-            subprocess.run([shutil.which('rime_dict_manager'),'--sync'],cwd=self.target,check=True,capture_output=True)
+            subprocess.run([NATIVE_MANAGER,'--sync'],cwd=self.target,check=True,capture_output=True)
             path=self.sync/'local/remote_only.userdb.txt';data=path.read_bytes();validate_snapshot(data,'local','remote_only')
             return sorted(line for line in data.decode().splitlines() if line and not line.startswith('#'))
         original=sync();self.assertEqual(len(original),2)
         for _ in range(3):
-            self.assertEqual(ensure(self.target,self.sync,'local',['remote_only'],self.session,'linux'),[])
+            self.assertEqual(ensure(self.target,self.sync,'local',['remote_only'],self.session,platform),[])
             self.assertEqual(sync(),original)
 
     @unittest.skipUnless(sys.platform.startswith('linux') and __import__('ctypes.util',fromlist=['find_library']).find_library('rime'),'Requires librime')

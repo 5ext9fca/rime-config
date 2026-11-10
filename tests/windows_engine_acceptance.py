@@ -37,6 +37,7 @@ def main():
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--workspace', type=Path, required=True)
     parser.add_argument('--shared-data', type=Path, help='Unix librime 共享资源目录；省略时使用小狼毫 data')
+    parser.add_argument('--distribution-code-name', help='模拟真实前端身份，例如 Squirrel')
     args = parser.parse_args()
     root = Path(tempfile.mkdtemp(prefix='engine-acceptance-', dir=args.workspace)).resolve()
     user = root / 'user'
@@ -56,6 +57,8 @@ def main():
     traits.prebuilt_data_dir = str(args.shared_data / 'build').encode('utf-8') if args.shared_data else traits.shared_data_dir
     traits.user_data_dir = str(user).encode('utf-8')
     traits.app_name = b'rime.engine_acceptance'
+    if args.distribution_code_name:
+        traits.distribution_code_name = args.distribution_code_name.encode()
     traits.log_dir = str(logs).encode('utf-8')
     function(lib, 'RimeSetup', None, C.POINTER(Traits))(C.byref(traits))
     function(lib, 'RimeInitialize', None, C.c_void_p)(None)
@@ -95,15 +98,23 @@ def main():
         result['english_candidates'] = 'passed'
         candidates("xi'an")
         key(sid, 32, 4)  # Control+Space
-        assert get_option(sid, b'ascii_mode')
-        commit = Commit()
-        commit.data_size = C.sizeof(Commit) - 4
-        assert function(lib, 'RimeGetCommit', C.c_int, C.c_size_t, C.POINTER(Commit))(sid, C.byref(commit))
-        try:
-            assert commit.text.decode() == 'xian'
-        finally:
-            function(lib, 'RimeFreeCommit', C.c_int, C.POINTER(Commit))(C.byref(commit))
-        result['ctrl_space_commit_and_toggle'] = 'passed'
+        if args.distribution_code_name == 'Squirrel':
+            assert not get_option(sid, b'ascii_mode')
+            for schema in ('rime_ice', 'luna_quanpin'):
+                assert select(sid, schema.encode())
+                option(sid, b'ascii_mode', 1)
+                assert not get_option(sid, b'ascii_mode'), schema
+            result['squirrel_chinese_only'] = 'passed'
+        else:
+            assert get_option(sid, b'ascii_mode')
+            commit = Commit()
+            commit.data_size = C.sizeof(Commit) - 4
+            assert function(lib, 'RimeGetCommit', C.c_int, C.c_size_t, C.POINTER(Commit))(sid, C.byref(commit))
+            try:
+                assert commit.text.decode() == 'xian'
+            finally:
+                function(lib, 'RimeFreeCommit', C.c_int, C.POINTER(Commit))(C.byref(commit))
+            result['ctrl_space_commit_and_toggle'] = 'passed'
         # Verify same-document includes actually resolve to effective algebra.
         for schema in ('melt_eng', 'radical_pinyin'):
             assert select(sid, schema.encode())

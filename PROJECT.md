@@ -6,7 +6,7 @@
 
 截至 2026-11-10，Windows 原生客户端及真实 VPS 已完成验收。本机当前用户计划任务单实例运行，每 60 秒通过现有 Caddy HTTPS 同步。6 个个人配置文件、2 份词典快照核对通过；后续已按用户要求接入原生 `/sync` 自动合并、导出及回传，模式为 `native-all`。Windows 和 Unix 共用全量词典范围补齐规则；Unix 原生包装器配置及实机验收不在本轮范围。详细证据见 [Windows 验收总结](#windows-验收总结)、[公网部署与同步验收](#公网部署与同步验收) 和 [原生全量同步](#原生全量同步)。
 
-macOS 已完成配置与快照 HTTPS 端到端、手动原生合并、UI 和登录启动验收；新增内置无人值守同步代码尚待在 Mac 启用和实机验收。Ubuntu 已完成真实锁屏触发的内置全量同步、重新部署及 HTTPS 回传，后台为 native-all。当前仅支持 Windows 原生、macOS、原生 Linux，WSL 已移除；不实现异机备份。
+macOS 已完成配置与快照 HTTPS 端到端、内置无人值守原生合并及失败恢复；UI 和登录启动此前已由用户确认。新入口及本轮证据见 [macOS 新入口与内置维护续验](#macos-新入口与内置维护续验2026-11-10)。Ubuntu 已完成真实锁屏触发的内置全量同步、重新部署及 HTTPS 回传，后台为 native-all。当前仅支持 Windows 原生、macOS、原生 Linux，WSL 已移除；不实现异机备份。
 
 ## 代码与数据边界
 
@@ -38,7 +38,7 @@ macOS 已完成配置与快照 HTTPS 端到端、手动原生合并、UI 和登�
 | 服务端同步 | 拉取个人配置和词典，合并本地变更，将更新提交回服务端 | 已实现 HTTPS 客户端、设备令牌认证、SQLite 持久化与版本校验 |
 | 配置合并 | 使用上次同步基线、本地配置和服务端配置进行三方合并，冲突保留双方内容并报告 | 已实现按文件三方比较、冲突保留及显式解决；不自动拼接 YAML |
 | 配置应用 | 合并结果写入 `config/`，按清单应用到实际 Rime 目录 | 已实现本地单向应用、备份和受控删除 |
-| 个人词典应用 | 采集本机学习数据，与远端数据合并，通过 Rime 原生机制更新实际用户词典 | Windows 原生 /sync 已接入后台，按全量范围合并导出并验证；Unix 共用全量规则，平台包装器配置及实机联调待完成 |
+| 个人词典应用 | 采集本机学习数据，与远端数据合并，通过 Rime 原生机制更新实际用户词典 | Windows 原生 /sync 已接入后台，按全量范围合并导出并验证；Ubuntu 和 macOS 已启用内置全量同步并完成实机合并、导出及 HTTPS 回传 |
 | 后台自动运行 | 当前用户登录后持续同步，支持失败恢复 | Windows 当前用户计划任务已验收；macOS launchd 运行、异常重启及注销后登录启动验收完成（登录项由用户确认）；Linux systemd 生命周期及真实登录触发已验收 |
 | 第三方词典刷新 | 按独立周期拉取指定上游词典，校验后更新本机副本 | 已实现项目配置驱动的 GitHub 词典刷新，默认雾凇拼音 |
 
@@ -467,6 +467,27 @@ Fcitx5 原生入口依据 [fcitx5-rime 源码](https://github.com/fcitx/fcitx5-r
 
 交接时分开报告配置应用、快照传输、原生导入、后台运行与 UI。更新本文验证记录和 README 使用方式；服务端有变更时同步维护 server/README。Mac 尚未交付无人值守原生包装器，注销后登录启动已由用户确认完成；VPS 定期备份也仍未配置，这些不应被 Linux 验收默认为已完成。
 
+
+### macOS 中文模式锁定（2026-11-10）
+
+用户在非 UI 验收后明确要求并接受：macOS 的 Ctrl+Space 由系统处理，鼠须管固定中文，英文使用系统输入源。`squirrel.custom.yaml` 的终端/编辑器应用选项统一为 `ascii_mode: false`；`hx_preferences.lua` 依据 librime-lua 的 `get_distribution_code_name() == "Squirrel"` 识别鼠须管，初始化时恢复中文，收到菜单或应用选项设置英文时立即恢复中文，不提交或清空当前拼音；即使收到 Ctrl+Space 也不再执行内部切换。其他前端仍使用原有切换与去分隔符提交行为。此规则适用于已装载个人处理器的雾凇、朙月方案；不改变系统输入源快捷键，也不限制中文方案的英文候选/混输。
+
+此前“macOS 终端/编辑器默认英文”和引擎内部 Ctrl+Space 切换的记录是旧配置验收结果，以本节为准。测试覆盖初始英文恢复、外部英文选项回退、拼音保留、Ctrl+Space 让行及其他前端兼容；真实引擎验收使用 `--distribution-code-name Squirrel`，验证两个中文方案无法保持英文状态。另修复成功部署后的新配置被旧 `retry_at` 延后问题：仅未完成/失败任务受重试期限限制，成功后的新指纹仍先检查真实空闲；失败重试和原生词典的独立限频保持不变。最终回归 168 项：161 通过、7 项其他平台测试跳过。已备份并应用到实际目录，鼠须管原生部署取得 3/3/0 成功凭据；编译的应用选项为中文，3 个修改配置与 HTTPS revision 42 逐字节一致，后台 running。证据在私有 `private/macos-chinese-lock/`。
+
+### macOS 新入口与内置维护续验（2026-11-10）
+
+本轮按用户要求合并远端并验收 UI 以外能力。`main` 从 `fe10455` 快进至 `1e30035`，3 个提交合并无冲突；合并前备份本地配置，原本未提交的鼠须管应用初始英文设置与远端一致。UI 不在本轮复验范围，先前用户确认的 UI、注销登录启动结论保留。
+
+- 回归 167 项：160 通过、7 项跳过。使用鼠须管自带 librime/Lua 运行库补验 Lua；首次建库和客户端/WSGI 回传测试已扩展到 macOS，实际执行 `renamex_np(RENAME_EXCL)`、原生恢复与导出。跳过项为 5 项 Windows 原生测试、Linux levers 工作者测试和 Fcitx5 专用配置测试。
+- 隔离原生验收覆盖两个词典、双设备合并、限定范围和重复词频不变；隔离引擎验收覆盖雾凇/朙月中文候选、英文候选、9 候选、Ctrl+Space 提交及切换、melt_eng 与 radical_pinyin 有效代数。未读取或复制活动用户数据库，测试词条不注入生产账号。12 个范围内 YAML 由 librime 解析通过，鼠须管编译结果包含终端/编辑器初始英文选项；这不代替应用中的 UI/按键验收。
+- 已迁移 LaunchAgent 到 `rime.py --native-sync-builtin`，完成安装预览、更新、卸载、缺失状态查询、恢复安装、异常退出后自动重启和单实例检查。身份文件权限为 0600；凭据、路径记忆、结果与备份保持 Git 忽略。此前登录触发已由用户确认，本轮没有注销用户会话。
+- 真实第三方刷新锁定 `iDvel/rime-ice@99662ba01e3affa6a0f009174ca530b887bac3b6`，17 个文件全部下载、Git blob 校验通过，实际文件 SHA-256 与刷新凭据一致，结果为当前版本，无需替换。哈希失败、中断和回滚路径由回归测试覆盖。
+
+实机发现并修复鼠须管日志缓冲问题：正常空闲触发 `--sync` 后，末尾完成摘要滞留于 INFO 缓冲，180 秒超时；随后部署时延迟刷出的上一轮日志也会污染本轮完成判断。依据 [glog 写入/刷新实现](https://github.com/google/glog/blob/v0.7.1/src/logging.cc)，仅等待 `logbufsecs` 秒不保证空闲进程刷新。用户明确同意配置无缓冲日志并重启输入法。内置适配器现于空闲且取得维护锁后检查进程环境；必要时正常退出唯一鼠须管实例，以 `open --env GLOG_logbufsecs=0` 重新启动，再绑定新 PID 和重新采集的日志偏移。变量仅作用于该应用，不修改全局环境或应用包；下次系统启动未配置的实例时也会在空闲维护前处理。已配置实例不重复重启，无法确认退出时不启动第二个实例。
+
+实际失败恢复证据：首次失败后 `unsafe=true`，新导出与云端不一致但没有上传，云端保持已确认 revision 38；服务异常重启及卸载/恢复安装后 `last_attempt` 不变，继续 `retry-wait`，没有清空状态或绕过 900 秒重试。23:32:33 原生重试成功，同一鼠须管 PID 67274 确认两个词典和 `3 tasks ran: 3 success, 0 failure`，`unsafe=false`；23:35:09 自动部署重试成功，同样取得 3/3/0 凭据，资源指纹复查一致。最终 17 个配置范围项（16 个文件、1 个 null 删除标记）与服务端一致，其中 14 个适用于实际 Rime 目录的文件逐字节相同；2 份本机快照与 HTTPS revision 40 一致。重复 `--sync-now` 保持 revision 40，原生记录 deferred/interval，后续部署 unchanged，工作流无 failed/blocked，服务 running。本轮 macOS 非 UI 验收完成；UI 未复验。
+
+私有证据集中在 `private/macos-followup/`：`tests-final.log`、`native-acceptance-*/result.json`、`engine-acceptance-*/result.json`、`server-integration.log`、`service-lifecycle.json`、`service-recovery.json`、`third-party-result.json`、`failure-quarantine.json`、`result.json`、`repeat-sync.log`、`service-final.txt`。该目录及合并前配置备份不提交 Git。
 
 ### macOS 公网与原生合并续验（2026-11-10）
 

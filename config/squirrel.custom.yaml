@@ -1,5 +1,5 @@
 # 鼠须管外观：对应 weasel.custom.yaml 的明暗配色、竖排列表及圆角布局。
-# 终端和编辑器初始英文；保留手动切换能力及其他应用选项。
+# 鼠须管固定中文；Ctrl+Space 由 macOS 切换输入源，英文使用系统输入源。
 patch:
   "style/color_scheme": hx_light
   "style/color_scheme_dark": hx_dark
@@ -61,27 +61,27 @@ patch:
     hilited_comment_text_color: 0xffffff
 
   "app_options/+":
-    "com.apple.Terminal": {ascii_mode: true}
-    "com.googlecode.iterm2": {ascii_mode: true}
-    "com.github.wez.wezterm": {ascii_mode: true}
-    "org.alacritty": {ascii_mode: true}
-    "net.kovidgoyal.kitty": {ascii_mode: true}
-    "com.microsoft.VSCode": {ascii_mode: true}
-    "com.microsoft.VSCodeInsiders": {ascii_mode: true}
-    "com.todesktop.230313mzl4w4u92": {ascii_mode: true}
-    "com.exafunction.windsurf": {ascii_mode: true}
-    "com.vscodium": {ascii_mode: true}
-    "com.sublimetext.4": {ascii_mode: true}
-    "com.sublimetext.3": {ascii_mode: true}
-    "com.qvacua.VimR": {ascii_mode: true}
-    "org.gnu.Emacs": {ascii_mode: true}
-    "com.jetbrains.intellij": {ascii_mode: true}
-    "com.jetbrains.intellij.ce": {ascii_mode: true}
-    "com.jetbrains.pycharm": {ascii_mode: true}
-    "com.jetbrains.pycharm.ce": {ascii_mode: true}
-    "com.jetbrains.WebStorm": {ascii_mode: true}
-    "com.jetbrains.CLion": {ascii_mode: true}
-    "com.jetbrains.goland": {ascii_mode: true}
-    "com.jetbrains.rider": {ascii_mode: true}
-    "com.jetbrains.rustrover": {ascii_mode: true}
-    "com.jetbrains.datagrip": {ascii_mode: true}
+    "com.apple.Terminal": {ascii_mode: false}
+    "com.googlecode.iterm2": {ascii_mode: false}
+    "com.github.wez.wezterm": {ascii_mode: false}
+    "org.alacritty": {ascii_mode: false}
+    "net.kovidgoyal.kitty": {ascii_mode: false}
+    "com.microsoft.VSCode": {ascii_mode: false}
+    "com.microsoft.VSCodeInsiders": {ascii_mode: false}
+    "com.todesktop.230313mzl4w4u92": {ascii_mode: false}
+    "com.exafunction.windsurf": {ascii_mode: false}
+    "com.vscodium": {ascii_mode: false}
+    "com.sublimetext.4": {ascii_mode: false}
+    "com.sublimetext.3": {ascii_mode: false}
+    "com.qvacua.VimR": {ascii_mode: false}
+    "org.gnu.Emacs": {ascii_mode: false}
+    "com.jetbrains.intellij": {ascii_mode: false}
+    "com.jetbrains.intellij.ce": {ascii_mode: false}
+    "com.jetbrains.pycharm": {ascii_mode: false}
+    "com.jetbrains.pycharm.ce": {ascii_mode: false}
+    "com.jetbrains.WebStorm": {ascii_mode: false}
+    "com.jetbrains.CLion": {ascii_mode: false}
+    "com.jetbrains.goland": {ascii_mode: false}
+    "com.jetbrains.rider": {ascii_mode: false}
+    "com.jetbrains.rustrover": {ascii_mode: false}
+    "com.jetbrains.datagrip": {ascii_mode: false}

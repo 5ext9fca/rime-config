@@ -11,7 +11,8 @@ patch:
     Control_L: noop
     Control_R: noop
     Caps_Lock: noop
-  # Ctrl+Space 由个人 Lua 处理器负责切换并去除拼音分隔符。
+  # Windows/Linux 的 Ctrl+Space 由个人 Lua 处理器负责切换并去除拼音分隔符。
+  # macOS 由系统切换输入源，鼠须管保持中文。
   "key_binder/bindings/+":
     - {when: has_menu, accept: minus, send: Page_Up}
     - {when: has_menu, accept: equal, send: Page_Down}

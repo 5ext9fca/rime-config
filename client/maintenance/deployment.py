@@ -53,7 +53,9 @@ def deploy(target,names,state,policy,executor,dry_run=False,now=None):
         if record.get('target',str(target))!=str(target):raise ValueError('Deployment state target mismatch')
         if record.get('fingerprint')==value and record.get('status')=='success':return 'unchanged'
         now=time.time() if now is None else now
-        if now<record.get('retry_at',0):return 'deferred'
+        # Retry backoff belongs to unfinished work, not a successful deployment
+        # followed by a new configuration change.
+        if record.get('status')!='success' and now<record.get('retry_at',0):return 'deferred'
         session=state/'runs'/uuid.uuid4().hex;session.mkdir(parents=True,mode=0o700)
         record={'target':str(target),'status':'running','retry_at':now+policy['retry_seconds'],'session':session.name,'requested_fingerprint':value}
         atomic_write(path,json.dumps(record).encode())

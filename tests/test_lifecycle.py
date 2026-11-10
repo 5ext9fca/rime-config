@@ -132,6 +132,15 @@ class AutomationTests(unittest.TestCase):
         executor.deploy.side_effect=lambda *args:( (target/'a.yaml').write_text('c'), {'status':'success'})[1]
         with self.assertRaises(ValueError):deployment.deploy(target,['a.yaml'],state,policy,executor,now=3000)
 
+    def test_new_configuration_after_success_does_not_wait_for_failure_backoff(self):
+        target=self.root/'rime';target.mkdir();(target/'a.yaml').write_text('a')
+        state=self.root/'state';policy={'enabled':True,'retry_seconds':900,'idle_seconds':30,'commands':{}}
+        executor=Mock();executor.deploy.return_value={'status':'success'}
+        self.assertEqual(deployment.deploy(target,['a.yaml'],state,policy,executor,now=1000),'success')
+        (target/'a.yaml').write_text('b')
+        self.assertEqual(deployment.deploy(target,['a.yaml'],state,policy,executor,now=1001),'success')
+        self.assertEqual(executor.deploy.call_count,2)
+
     def test_server_logging_config_replaces_inherited_root_handlers(self):
         import io
         import runpy
