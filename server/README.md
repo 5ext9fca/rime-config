@@ -83,4 +83,13 @@ chmod 600 backup.sqlite3
 
 确认容器健康、无令牌请求返回 JSON 401，再使用客户端执行一次同步并检查另一台设备能否接收。配置应用后需重新部署输入法；个人词典快照接收后需由 Rime 原生同步导入。
 
-当前已有应用和客户端集成测试及 Compose 静态校验；真实 VPS、容器启动、公共 TLS 路由和三端原生导入尚未完成联调。自动测试方法与边界见 [开发与验证](../PROJECT.md#开发与验证)。
+2026-11-10 已在 `proxy_jp` 完成真实 Docker/Caddy/HTTPS 部署验收，并接入 Windows 后台客户端。服务地址为 `https://198.13.57.54:8443/rime/v1/state`，未发布应用宿主机端口；Windows 后续已接入原生 `/sync` 自动合并和导出。全量原生模式会补齐客户端词典清单，若出现新名称，应同步更新服务端 `sync-manifest.json` 并重建容器，范围未对齐时客户端停止原生处理与回传。自动测试方法与边界见 [开发与验证](../PROJECT.md#开发与验证)，详细结果见 [公网部署与同步验收](../PROJECT.md#公网部署与同步验收)。
+
+当前实例的维护位置：
+
+- Compose：`/home/hx/rime-config/server`；容器：`rime-config-app-1`；数据卷：`rime-config_data`。
+- 公共入口：`/home/hx/MyProxyCaddy/conf/routes/rime.caddy`，由既有 HTTPS 站点导入，网络为 `caddy-public`。
+- 私有设置：`server/settings.json`，属主 `10001:10001`、权限 `0600`，仅保留正式设备。
+- 验收备份：`server/backups/accepted-20261110.sqlite3`，权限 `0600`；使用 SQLite backup API 生成并通过完整性检查。这是一次性验收备份，尚未配置定期备份任务。
+
+部署时发现并修复 Gunicorn 配置路径问题：`--config` 使用 `/app/server/gunicorn.conf.py`，避免在 `--chdir` 生效前解析相对路径失败。若通过自定义归档部署，请确保镜像内代码可由 UID 10001 读取；不要将私有设置的 `0600` 权限规则套用到全部程序源码。
