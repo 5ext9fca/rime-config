@@ -9,6 +9,7 @@ patch:
   "style/comment_font_point": 14
   "style/color_scheme": hx_light
   "style/color_scheme_dark": hx_dark
+  "style/layout/candidate_spacing": 10
   "style/layout/round_corner": 7
   "style/layout/hilited_corner_radius": 7
   "style/layout/corner_radius": 12
