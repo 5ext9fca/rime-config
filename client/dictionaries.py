@@ -1,6 +1,6 @@
 """Exchange Rime-owned text snapshots, never live userdb files or third-party data."""
 import contextlib
-import fcntl
+from file_lock import lock_exclusive
 import json
 import os
 from pathlib import Path
@@ -9,18 +9,19 @@ import subprocess
 import time
 import uuid
 
-from sync import atomic_write
+from sync import atomic_write, is_link, windows_reserved
 
 
 def component(value):
-    if not re.fullmatch(r'[A-Za-z0-9_-][A-Za-z0-9_.-]*', value) or '..' in value:
+    if (not re.fullmatch(r'[A-Za-z0-9_-][A-Za-z0-9_.-]*', value) or '..' in value
+            or value.endswith('.') or windows_reserved(value)):
         raise ValueError(f'无效的设备或词典名称: {value}')
     return value
 
 
 def checked(path, directory=False):
     for parent in (path, *path.parents):
-        if parent.is_symlink():
+        if is_link(parent):
             raise ValueError(f'个人词典路径不能包含符号链接: {parent}')
     for parent in path.parents:
         if parent.exists() and not parent.is_dir():
@@ -39,7 +40,12 @@ def validate_snapshot(data, device, name):
     if '#@/db_type\tuserdb' not in header:
         raise ValueError(f'不是 Rime userdb 快照: {path}')
     metadata = dict(line[2:].split('\t', 1) for line in header if line.startswith('#@/') and '\t' in line)
-    db_name = metadata.get('/db_name', '').split('.userdb', 1)[0]
+    # Match librime UserDbHelper::GetDbName (strip the LAST .userdb suffix).
+    # A first-split would accept a snapshot that native restore opens under a
+    # different dictionary name, bypassing the declared scope.
+    db_name = metadata.get('/db_name', '').rsplit('.userdb', 1)[0]
+    if metadata.get('/db_type') != 'userdb':
+        raise ValueError(f'不是 Rime userdb 快照: {path}')
     if db_name != name:
         raise ValueError(f'快照词典名称与文件名不一致: {path}')
     if metadata.get('/user_id') != device:
@@ -70,7 +76,7 @@ def snapshots(root, devices, names=None):
     return result
 
 
-def exchange(sync_dir, store, device, state, dry_run=False, command=None, names=None):
+def exchange(sync_dir, store, device, state, dry_run=False, command=None, names=None, native=None):
     """Pull other devices, let Rime merge/export, then publish only this device."""
     component(device)
     if names is not None:
@@ -86,6 +92,10 @@ def exchange(sync_dir, store, device, state, dry_run=False, command=None, names=
         for b in roots[i + 1:]:
             if a == b or a in b.parents or b in a.parents:
                 raise ValueError('词典同步目录、交换目录和状态目录不能重叠')
+    if native and command:
+        raise ValueError('不能同时使用全量和逐词典原生入口')
+    if native and not dry_run:
+        native.check(names)
     argv = json.loads(command) if command else None
     if command and (not isinstance(argv, list) or not argv or not all(isinstance(v, str) and v for v in argv)):
         raise ValueError('--native-sync-command 必须是非空 JSON 字符串数组')
@@ -95,7 +105,7 @@ def exchange(sync_dir, store, device, state, dry_run=False, command=None, names=
         if not dry_run:
             state.mkdir(parents=True, exist_ok=True, mode=0o700)
             lock = stack.enter_context(checked(state / 'lock').open('a'))
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            lock_exclusive(lock)
         devices = [p.name for p in store.iterdir() if p.name != device and p.is_dir()] if store.exists() else []
         incoming = snapshots(store, devices, names)
         outgoing = snapshots(sync_dir, [device], names)
@@ -123,6 +133,9 @@ def exchange(sync_dir, store, device, state, dry_run=False, command=None, names=
         for name in outgoing:
             checked(store / name)
         pulled = transfer(incoming, sync_dir, 'pull')
+        if native and not dry_run:
+            native.run(names)
+            outgoing = snapshots(sync_dir, [device], names) if native.publish_allowed else {}
         if argv and not dry_run:
             # shell=False avoids interpreting command text; hook must block until complete.
             commands = [argv] if names is None else [[arg.replace('{dictionary}', name) for arg in argv] for name in names]
@@ -130,8 +143,8 @@ def exchange(sync_dir, store, device, state, dry_run=False, command=None, names=
                 subprocess.run(invocation, check=True, timeout=300)
             outgoing = snapshots(sync_dir, [device], names)
         pushed = transfer(outgoing, store, 'push')
-        if not outgoing:
+        if not outgoing and not native:
             print('个人词典尚无本机快照：请在 Rime 中执行“同步用户资料”。', flush=True)
-        elif not argv and pulled:
+        elif not argv and not native and pulled:
             print('已接收快照：请在 Rime 中执行“同步用户资料”以合并词条和词频。', flush=True)
         return pulled, pushed

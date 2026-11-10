@@ -34,7 +34,8 @@ class PathTests(unittest.TestCase):
         self.assertEqual((target, origin), (self.target, 'discovered'))
         self.assertFalse(self.memory.exists())
         paths.remember_target(self.memory, target, 'linux')
-        self.assertEqual(stat.S_IMODE(self.memory.stat().st_mode), 0o600)
+        if __import__("os").name != "nt":
+            self.assertEqual(stat.S_IMODE(self.memory.stat().st_mode), 0o600)
         with patch.object(paths, 'discover', side_effect=AssertionError('must not search')):
             self.assertEqual(self.resolve(), (self.target, 'remembered'))
 
@@ -91,7 +92,12 @@ class PathTests(unittest.TestCase):
 
     def test_symlink_refused(self):
         alias = self.root / 'alias'
-        alias.symlink_to(self.target)
+        try:
+            alias.symlink_to(self.target)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows 未授予符号链接创建权限")
+            raise
         with self.assertRaises(ValueError):
             self.resolve(explicit=alias)
 

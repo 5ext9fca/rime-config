@@ -1,6 +1,7 @@
 import argparse
 import contextlib
 import io
+import json
 import os
 from pathlib import Path
 import plistlib
@@ -31,6 +32,7 @@ class ServiceTests(unittest.TestCase):
         self.system = 'Linux'
         self.active = False
         self.enabled = False
+        patch.object(service.os, 'getuid', return_value=1000, create=True).start()
         self.addCleanup(patch.stopall)
         patch.object(Path, 'home', return_value=self.root).start()
         patch.object(service.platform, 'system', side_effect=lambda: self.system).start()
@@ -69,7 +71,8 @@ class ServiceTests(unittest.TestCase):
         self.assertIn('--watch', text)
         self.assertIn('project space', text)
         self.assertIn(f'WorkingDirectory={self.script.parent.parent}/.\n', text)
-        self.assertEqual(self.unit.stat().st_mode & 0o777, 0o600)
+        if __import__("os").name != "nt":
+            self.assertEqual(self.unit.stat().st_mode & 0o777, 0o600)
         self.assertTrue(self.active)
         self.args.interval = 12
         self.manage()
@@ -113,7 +116,12 @@ class ServiceTests(unittest.TestCase):
                 self.manage(action)
         self.assertEqual(self.unit.read_text(), 'user supplied service')
         self.unit.unlink()
-        self.unit.symlink_to(self.root / 'missing')
+        try:
+            self.unit.symlink_to(self.root / 'missing')
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows 未授予符号链接创建权限")
+            raise
         with self.assertRaisesRegex(ValueError, '符号链接'):
             self.manage()
         self.assertEqual(self.calls, [])
@@ -165,7 +173,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_argv_preserves_options_and_never_persists_one_shot_actions(self):
         self.args.paths_state = Path('relative state.json')
-        self.args.native_sync_command = '["/a b/wrapper", "--dictionary", "{dictionary}"]'
+        self.args.native_sync_command = json.dumps([str(self.root / 'a b/wrapper'), '--dictionary', '{dictionary}'])
         self.args.resolve_conflicts = 'remote'
         self.args.sync_now = True
         argv = service.command(self.args, self.script, self.root / 'Rime')

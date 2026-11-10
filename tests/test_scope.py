@@ -55,8 +55,12 @@ class ScopeTests(unittest.TestCase):
         cfg = json.loads((Path(__file__).resolve().parents[1] / 'third-party.json').read_text())
         cfg['enabled'] = False
         third.write_text(json.dumps(cfg))
+        remote = self.root / 'remote.json'
+        remote.write_text(json.dumps({'enabled': False, 'url': 'https://example.test/rime/v1/state',
+                                      'interval_seconds': 60, 'retry_seconds': 30, 'timeout_seconds': 5}))
         (self.root / 'rime').mkdir()
-        argv = ['sync.py', '--paths-state', str(self.root / 'paths.local.json'), '--sync-config', str(self.path), '--third-party-config', str(third),
+        argv = ['sync.py', '--device-config', str(self.root / 'device.local.json'), '--remote-config', str(remote),
+                '--paths-state', str(self.root / 'paths.local.json'), '--sync-config', str(self.path), '--third-party-config', str(third),
                 '--target', str(self.root / 'rime'), '--state-dir', str(self.root / 'state'),
                 '--dictionary-store', str(self.root / 'store'), '--device-id', 'device', '--watch']
         rounds = []

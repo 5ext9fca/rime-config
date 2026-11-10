@@ -1,7 +1,7 @@
 """HTTPS state exchange with conservative three-way configuration merging."""
 import base64
 import binascii
-import fcntl
+from file_lock import lock_exclusive
 import hashlib
 import http.client
 import json
@@ -29,7 +29,7 @@ class RevisionChanged(RemoteError):
 
 
 def load_remote(path):
-    config = json.loads(Path(path).read_text())
+    config = json.loads(Path(path).read_text(encoding='utf-8'))
     required = {'enabled', 'url', 'interval_seconds', 'retry_seconds', 'timeout_seconds'}
     if not isinstance(config, dict) or set(config) not in (required, required | {'token_env'}):
         raise ValueError('Invalid remote.json fields')
@@ -106,7 +106,7 @@ def merge_file(base, local, remote, tracked):
 
 
 def synchronize(config, scope, source, sync_dir, device, state, command=None,
-                dry_run=False, transport=request, now=None, force=False, resolve=None):
+                dry_run=False, transport=request, now=None, force=False, resolve=None, native=None):
     if not config['enabled']:
         return 'disabled'
     component(device)
@@ -128,15 +128,15 @@ def synchronize(config, scope, source, sync_dir, device, state, command=None,
     key = hashlib.sha256(json.dumps([config, scope, device, str(source), str(sync_dir)], sort_keys=True).encode()).hexdigest()
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     with safe_path(state, 'lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_exclusive(lock)
         schedule_path = safe_path(state, 'schedule.json')
-        schedule = json.loads(schedule_path.read_text()) if schedule_path.exists() else {}
+        schedule = json.loads(schedule_path.read_text(encoding='utf-8')) if schedule_path.exists() else {}
         if not force and not resolve and schedule.get('key') == key and now < schedule.get('next_attempt', 0):
             return 'blocked' if schedule.get('error') else 'not-due'
         baseline_path = safe_path(state, 'baseline.json')
-        baseline = json.loads(baseline_path.read_text()) if baseline_path.exists() else {}
+        baseline = json.loads(baseline_path.read_text(encoding='utf-8')) if baseline_path.exists() else {}
         pending_path = safe_path(state, 'pending.json')
-        pending = json.loads(pending_path.read_text()) if pending_path.exists() else {}
+        pending = json.loads(pending_path.read_text(encoding='utf-8')) if pending_path.exists() else {}
         binding = [config['url'], device, str(source), str(sync_dir)]
         if pending and pending.get('binding') != binding:
             raise RemoteError('未完成提交属于其他服务或设备，请使用独立状态目录')
@@ -156,7 +156,8 @@ def synchronize(config, scope, source, sync_dir, device, state, command=None,
             if files and (not allowed['configuration']['enabled'] or not set(files) <= set(allowed['configuration']['files'])):
                 raise RemoteError('客户端配置范围超出服务端清单')
             if names and (not allowed['dictionaries']['enabled'] or not set(names) <= set(allowed['dictionaries']['names'])):
-                raise RemoteError('客户端词典范围超出服务端清单')
+                missing = sorted(set(names) - set(allowed['dictionaries']['names']))
+                raise RemoteError('客户端词典范围超出服务端清单，请启用并对齐服务端范围: ' + ', '.join(missing))
             local, merged, updates, conflicts = {}, {}, {}, {}
             base = baseline.get('configuration', {})
             for name in files:
@@ -212,8 +213,8 @@ def synchronize(config, scope, source, sync_dir, device, state, command=None,
                         else:
                             atomic_write(store / owner / (name + '.userdb.txt'), data)
                 if names:
-                    exchange(sync_dir, store, device, state / 'dictionary-apply', command=command, names=names)
-                outgoing = snapshots(sync_dir, [device], names) if names else {}
+                    exchange(sync_dir, store, device, state / 'dictionary-apply', command=command, names=names, native=native)
+                outgoing = snapshots(sync_dir, [device], names) if names and (not native or native.publish_allowed) else {}
                 dictionary_updates = {Path(path).name.removesuffix('.userdb.txt'): encode(data) for path, data in outgoing.items()}
                 dictionary_updates = {name: value for name, value in dictionary_updates.items() if remote_own.get(name) != value}
                 payload = {'base_revision': remote['revision'], 'configuration': updates, 'dictionaries': dictionary_updates}
@@ -246,7 +247,9 @@ def synchronize(config, scope, source, sync_dir, device, state, command=None,
                 new_base.update(merged)
                 new_own = dict(own_base)
                 new_own.update({Path(path).name.removesuffix('.userdb.txt'): encode(data) for path, data in outgoing.items()})
-                atomic_write(baseline_path, json.dumps({'binding': binding, 'user': remote['user'], 'revision': acknowledged['revision'], 'configuration': new_base, 'dictionaries': new_own, 'dictionary_application': {'mode': 'native-command' if command and names else 'snapshots-only', 'names': names}}, indent=2).encode())
+                mode = 'native-all' if native and names else 'native-command' if command and names else 'snapshots-only'
+                application = native.application if native and names else {'mode': mode, 'names': names}
+                atomic_write(baseline_path, json.dumps({'binding': binding, 'user': remote['user'], 'revision': acknowledged['revision'], 'configuration': new_base, 'dictionaries': new_own, 'dictionary_application': application}, indent=2).encode())
             except BaseException:
                 for name in reversed(completed):
                     path = safe_path(source, name)

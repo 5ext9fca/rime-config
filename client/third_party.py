@@ -1,5 +1,5 @@
 """Refresh explicitly selected GitHub dictionary blobs at a pinned commit."""
-import fcntl
+from file_lock import lock_exclusive
 import hashlib
 import http.client
 import json
@@ -134,7 +134,7 @@ def refresh(config, target, state, dry_run=False, force=False, now=None):
     key = fingerprint(config)
 
     def is_due():
-        schedule = json.loads(schedule_path.read_text()) if schedule_path.exists() else {}
+        schedule = json.loads(schedule_path.read_text(encoding='utf-8')) if schedule_path.exists() else {}
         if schedule and schedule.get('target') != str(target):
             raise ValueError('第三方状态目录属于不同目标')
         return force or schedule.get('config') != key or now >= schedule.get('next_attempt', 0)
@@ -148,7 +148,7 @@ def refresh(config, target, state, dry_run=False, force=False, now=None):
         return 'planned' if due else 'not-due'
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     with safe_path(state, 'lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_exclusive(lock)
         if not is_due():
             return 'not-due'
         schedule = {'target': str(target), 'config': key}

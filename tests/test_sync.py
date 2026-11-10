@@ -52,14 +52,24 @@ class SyncTests(unittest.TestCase):
 
     def test_preflight_blocks_symlink_and_no_partial_write(self):
         (self.source / 'z.yaml').write_text('z')
-        (self.target / 'z.yaml').symlink_to(self.source / 'z.yaml')
+        try:
+            (self.target / 'z.yaml').symlink_to(self.source / 'z.yaml')
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows 未授予符号链接创建权限")
+            raise
         with self.assertRaises(ValueError):
             self.apply()
         self.assertFalse((self.target / 'default.yaml').exists())
 
     def test_source_symlink_and_runtime_rejected(self):
         bad = self.source / 'alias.yaml'
-        bad.symlink_to(self.source / 'default.yaml')
+        try:
+            bad.symlink_to(self.source / 'default.yaml')
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows 未授予符号链接创建权限")
+            raise
         with self.assertRaises(ValueError):
             self.apply()
         bad.unlink()

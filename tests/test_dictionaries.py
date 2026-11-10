@@ -81,7 +81,12 @@ class DictionaryTests(unittest.TestCase):
 
     def test_symlink_refused(self):
         (self.store / 'b/luna_pinyin.userdb.txt').unlink()
-        (self.store / 'b/luna_pinyin.userdb.txt').symlink_to(self.local / 'a/luna_pinyin.userdb.txt')
+        try:
+            (self.store / 'b/luna_pinyin.userdb.txt').symlink_to(self.local / 'a/luna_pinyin.userdb.txt')
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows 未授予符号链接创建权限")
+            raise
         with self.assertRaises(ValueError):
             self.exchange()
 

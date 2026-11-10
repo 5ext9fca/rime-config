@@ -2,6 +2,7 @@
   "version": 1,
   "required_files": ["installation.yaml"],
   "candidates": {
+    "windows": ["{windows_appdata}/Rime"],
     "wsl": [
       "{windows_appdata}/Rime",
       "/mnt/c/Users/hx/AppData/Roaming/Rime"

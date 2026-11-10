@@ -6,21 +6,23 @@ import platform
 import string
 import subprocess
 
-from sync import atomic_write, safe_path
+from sync import atomic_write, safe_path, windows_reserved, is_link
 
 
 def platform_key(system=None, release=None):
     system = system or platform.system()
     release = release or platform.release()
+    if system == 'Windows':
+        return 'windows'
     if system == 'Darwin':
         return 'macos'
     if system == 'Linux':
         return 'wsl' if 'microsoft' in release.lower() or os.environ.get('WSL_DISTRO_NAME') else 'linux'
-    raise ValueError('仅支持 WSL、macOS、Linux')
+    raise ValueError('仅支持 Windows、WSL、macOS、Linux')
 
 
 def load_paths(path):
-    config = json.loads(Path(path).read_text())
+    config = json.loads(Path(path).read_text(encoding='utf-8'))
     if not isinstance(config, dict) or set(config) != {'version', 'required_files', 'candidates'} or type(config['version']) is not int or config['version'] != 1:
         raise ValueError('paths.json 需要 version=1、required_files、candidates')
     if not isinstance(config['required_files'], list) or not all(isinstance(v, str) and v for v in config['required_files']):
@@ -28,10 +30,14 @@ def load_paths(path):
     for name in config['required_files']:
         # installation.yaml is a discovery marker, not a managed file.
         p = Path(name)
-        if p.is_absolute() or '..' in p.parts or str(p) != name or not p.parts:
+        if p.is_absolute() or '..' in p.parts or p.as_posix() != name or p.drive or ":" in name or "\\" in name or not p.parts:
             raise ValueError('发现标记路径无效')
-    if not isinstance(config['candidates'], dict) or set(config['candidates']) != {'wsl', 'macos', 'linux'}:
-        raise ValueError('candidates 必须配置 wsl、macos、linux')
+        if any(part.endswith((' ', '.')) or windows_reserved(part)
+               or any(ord(c) < 32 or c in '<>"|?*' for c in part) for part in p.parts):
+            raise ValueError('发现标记路径无效')
+    if not isinstance(config['candidates'], dict) or set(config['candidates']) not in ({'wsl', 'macos', 'linux'}, {'windows', 'wsl', 'macos', 'linux'}):
+        raise ValueError('candidates 必须配置 wsl、macos、linux，可另加 windows')
+    config['candidates'].setdefault('windows', ['{windows_appdata}/Rime'])
     allowed = {'home', 'xdg_config_home', 'windows_appdata'}
     for entries in config['candidates'].values():
         if not isinstance(entries, list) or not all(isinstance(v, str) and v for v in entries):
@@ -67,7 +73,7 @@ def discover(config, system=None):
     found = []
     for template in config['candidates'][system]:
         if '{windows_appdata}' in template and 'windows_appdata' not in fields:
-            fields['windows_appdata'] = windows_appdata() if system == 'wsl' else None
+            fields['windows_appdata'] = (os.environ.get('APPDATA') if system == 'windows' else windows_appdata() if system == 'wsl' else None)
         if '{windows_appdata}' in template and not fields.get('windows_appdata'):
             continue
         path = Path(template.format(**fields)).expanduser()
@@ -76,7 +82,7 @@ def discover(config, system=None):
         if not path.is_dir():
             continue
         safe_path(path)
-        if all((path / name).is_file() and not (path / name).is_symlink() for name in config['required_files']):
+        if all((path / name).is_file() and not is_link(path / name) for name in config['required_files']):
             if path not in found:
                 found.append(path)
     if not found:
@@ -90,7 +96,7 @@ def resolve_target(config, memory_path, explicit=None, identity_target=None, red
     system = system or platform_key()
     memory_path = Path(os.path.abspath(Path(memory_path).expanduser()))
     safe_path(memory_path.parent, memory_path.name)
-    memory = json.loads(memory_path.read_text()) if memory_path.exists() else {'version': 1, 'targets': {}}
+    memory = json.loads(memory_path.read_text(encoding='utf-8')) if memory_path.exists() else {'version': 1, 'targets': {}}
     if not isinstance(memory, dict) or set(memory) != {'version', 'targets'} or memory['version'] != 1 or not isinstance(memory['targets'], dict):
         raise ValueError('路径记忆文件无效')
     if explicit is not None:
@@ -110,7 +116,7 @@ def remember_target(memory_path, target, system=None):
     system = system or platform_key()
     memory_path = Path(os.path.abspath(Path(memory_path).expanduser()))
     safe_path(memory_path.parent, memory_path.name)
-    data = json.loads(memory_path.read_text()) if memory_path.exists() else {'version': 1, 'targets': {}}
+    data = json.loads(memory_path.read_text(encoding='utf-8')) if memory_path.exists() else {'version': 1, 'targets': {}}
     if data.get('version') != 1 or not isinstance(data.get('targets'), dict):
         raise ValueError('路径记忆文件无效')
     if data['targets'].get(system) == str(target):

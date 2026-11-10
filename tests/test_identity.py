@@ -37,7 +37,8 @@ class IdentityTests(unittest.TestCase):
         value = self.init()
         self.assertEqual(value['installation_id'], 'test-device')
         self.assertEqual(identity.load_identity(self.path), value)
-        self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
+        if __import__("os").name != "nt":
+            self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
         with patch.object(sys, 'stdin', io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
             identity.initialize(self.path, self.target)
         self.assertEqual(identity.load_identity(self.path), value)
@@ -60,7 +61,12 @@ class IdentityTests(unittest.TestCase):
             identity.installation_id(self.target)
 
     def test_symlink_refused(self):
-        self.path.symlink_to(self.root / 'other.json')
+        try:
+            self.path.symlink_to(self.root / 'other.json')
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows 未授予符号链接创建权限")
+            raise
         with self.assertRaises(ValueError):
             identity.load_identity(self.path)
 

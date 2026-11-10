@@ -142,6 +142,41 @@ class RemoteTests(ServerFixture):
         self.assertFalse((self.root / 'b/rime/a.custom.yaml').exists())
         self.assertIsNone(self.call()[1]['configuration']['a.custom.yaml'])
 
+    def test_full_native_failure_blocks_upload_and_scope_checked_first(self):
+        from unittest.mock import Mock
+        native = Mock()
+        native.run.side_effect = ValueError('native sync failed')
+        with self.assertRaises(remote.RemoteError):
+            self.run_sync(native=native)
+        native.run.assert_called_once_with(['rime_ice'])
+        self.assertEqual(self.call()[1]['revision'], 0)
+        self.assertFalse((self.root / 'a/state/baseline.json').exists())
+        native.reset_mock()
+        self.scope['dictionaries']['names'].append('new-dictionary')
+        # ServerFixture holds its independently persisted server scope.
+        with self.assertRaises(remote.RemoteError):
+            self.run_sync(native=native)
+        native.run.assert_not_called()
+        self.assertEqual(self.call()[1]['revision'], 0)
+
+    def test_deferred_native_keeps_cloud_config_and_received_snapshots(self):
+        from unittest.mock import Mock
+        self.upload(device='b', dictionaries={'rime_ice': remote.encode(snapshot('b'))})
+        own=self.root/'a/rime/sync/a';own.mkdir(parents=True)
+        (own/'rime_ice.userdb.txt').write_bytes(snapshot('a'))
+        native=Mock(publish_allowed=False, application={'mode':'native-all','status':'deferred','reason':'retry-wait'})
+        self.run_sync(native=native)
+        server=self.call()[1]
+        self.assertEqual(server['configuration']['a.custom.yaml'],encoded('initial-a'))
+        self.assertNotIn('a',server['dictionaries'])
+        self.assertEqual((self.root/'a/rime/sync/b/rime_ice.userdb.txt').read_bytes(),snapshot('b'))
+        baseline=json.loads((self.root/'a/state/baseline.json').read_text())
+        self.assertEqual(baseline['dictionary_application']['status'],'deferred')
+        native.publish_allowed=True
+        native.application={'mode':'native-all','status':'success'}
+        self.run_sync(native=native)
+        self.assertEqual(self.call()[1]['dictionaries']['a']['rime_ice'],remote.encode(snapshot('a')))
+
     def test_conflict_blocks_upload_and_explicit_local_resolution(self):
         self.run_sync('a')
         self.run_sync('b')

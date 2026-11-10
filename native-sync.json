@@ -1,0 +1,6 @@
+{
+  "interval_seconds": 900,
+  "retry_seconds": 900,
+  "idle_seconds": 30,
+  "max_interval_seconds": 3600
+}

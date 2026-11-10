@@ -119,7 +119,12 @@ class RefreshTests(unittest.TestCase):
         self.assertFalse((self.state / 'receipt.json').exists())
 
     def test_symlink_rejected_before_network(self):
-        (self.target / 'cn_dicts').symlink_to(self.root)
+        try:
+            (self.target / 'cn_dicts').symlink_to(self.root)
+        except OSError as exc:
+            if getattr(exc, "winerror", None) == 1314:
+                self.skipTest("Windows 未授予符号链接创建权限")
+            raise
         with self.assertRaises(ValueError):
             self.run_refresh()
         self.assertEqual(self.calls, [])
