@@ -11,3 +11,5 @@ server/.env
 *.sqlite3-shm
 # Project-local device credentials (never synchronize or build into images)
 *.local.json
+# Local endpoint settings; copy remote.json.example on first setup.
+/remote.json

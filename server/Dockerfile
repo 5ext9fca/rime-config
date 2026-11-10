@@ -11,7 +11,8 @@ USER 10001:10001
 FROM base AS test
 COPY tests/ /app/tests/
 COPY rime.py /app/rime.py
-COPY sync-manifest.json third-party.json remote.json paths.json native-sync.json automation.json /app/
+COPY sync-manifest.json third-party.json paths.json native-sync.json automation.json /app/
+COPY remote.json.example /app/remote.json
 CMD ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
 
 FROM base AS runtime

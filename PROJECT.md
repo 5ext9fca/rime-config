@@ -208,6 +208,8 @@ python3 rime.py --resolve-conflicts remote
 
 ## 连接、状态与服务端运行模型
 
+仓库模板为 `remote.json.example`，保持禁用和占位地址；首次复制为 Git 忽略的本机 `remote.json`。客户端默认路径和已有服务参数仍指向 `remote.json`。Docker 构建上下文只允许模板，测试镜像将模板复制为 `/app/remote.json`，不打包本机连接设置。历史记录中的“仓库示例 remote.json”指更名前的布局。
+
 `remote.json` 配置 HTTPS 地址、同步间隔、失败重试及请求超时，每轮重新读取。私有身份令牌优先于兼容的 `token_env` 环境变量。客户端验证证书、拒绝重定向；身份来自 Bearer 令牌，不从请求体接受用户或设备身份。
 
 默认状态目录为 `~/.local/state/rime-config/<目标路径标识>/`，可由 `--state-dir` 指定。同一目标必须保持同一状态目录，避免绕过文件锁和管理历史。状态与备份包含个人数据，不应提交 Git。

@@ -41,7 +41,7 @@
 
 - 参考 `~/clash-config/server`：Compose 加入公共 Caddy 外部网络，默认 `caddy-public`，别名 `rime-sync`；不发布应用端口到宿主机，不创建第二套公网入口。
 - `server/settings.json`（不入 Git）配置设备令牌、用户及设备 ID、SQLite 路径和大小限制；每个令牌只写自己的设备词典，用户数据隔离。个人配置按用户共享，更新以 SQLite 事务校验基线版本。
-- `remote.json` 控制客户端 HTTPS 地址、周期和重试，默认禁用。`--init` 将本机安装 ID、设备令牌及目标路径保存在项目内的私有 `device.local.json`（0600、Git 忽略、Docker 排除），运行时自动读取。令牌不得写入 URL、日志或提交到 Git。客户端与服务端均按同步清单限制范围。
+- 仓库只跟踪默认禁用的 `remote.json.example`；首次复制为 Git 忽略的 `remote.json`，控制客户端 HTTPS 地址、周期和重试。本机 `remote.json` 不进入 Docker 构建上下文。`--init` 将本机安装 ID、设备令牌及目标路径保存在项目内的私有 `device.local.json`（0600、Git 忽略、Docker 排除），运行时自动读取。令牌不得写入 URL、日志或提交到 Git。客户端与服务端均按同步清单限制范围。
 - 初始化只读取 Rime 的 installation_id，不改写安装文件、不注册服务端设备、不自动联网。令牌隐藏输入或通过 `--token-stdin` 提供；设备配置不得位于 `config/` 内。
 - 客户端在 `config/` 与远端之间按文件进行三方比较；冲突保存双方内容，禁止自动选边。显式解决使用 `--resolve-conflicts`。删除用持久化 null 标记，缩小范围不等于删除。
 - 基线、待确认提交及备份保留在私有状态目录；上传重试必须处理响应丢失，不能因 CAS 失败覆盖其他设备修改。修改 bind mount 的配置后重建容器使其读取新文件。

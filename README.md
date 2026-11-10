@@ -11,6 +11,7 @@
 Windows 使用原生 Python 和 PowerShell，在本项目根目录执行：
 
 ```powershell
+if (!(Test-Path remote.json)) { Copy-Item remote.json.example remote.json }
 python rime.py --discover-target
 python rime.py --dry-run
 python rime.py --service install --dry-run
@@ -25,6 +26,8 @@ python rime.py --service uninstall
 macOS、Ubuntu 命令均在本项目根目录执行：
 
 ```bash
+# 首次使用复制禁用的模板；保留已存在的本机连接设置
+test -e remote.json || cp remote.json.example remote.json
 # 查找并记住本机实际配置目录，不需要设备令牌
 python3 rime.py --discover-target
 # 预览：不联网、不修改文件
@@ -62,14 +65,14 @@ python3 rime.py --discover-target --rediscover-target
 | [`config/`](config/) | 个人配置源文件，日常在此编辑 |
 | [`sync-manifest.json`](sync-manifest.json) | 个人配置与个人词典的同步、应用范围 |
 | [`third-party.json`](third-party.json) | 第三方词典上游、文件清单、刷新周期和开关 |
-| [`remote.json`](remote.json) | 公网服务地址、同步周期和开关，默认禁用 |
+| [`remote.json.example`](remote.json.example) | 公网连接模板，默认禁用；首次复制为 Git 忽略的 `remote.json` |
 | [`paths.json`](paths.json) | 各平台首次发现目录的规则 |
 | `device.local.json` | 初始化生成的本机安装 ID、设备令牌和目录 |
 | `paths.local.json` | 自动保存的各平台实际配置目录 |
 
 Windows 新原子写入文件使用受保护的 ACL，仅文件所有者、SYSTEM 和管理员可访问；项目、快照与备份目录也应放在自己的用户目录内，避免共享目录继承宽松权限。Unix 继续使用 0600 文件权限。
 
-两个 `*.local.json` 文件属于本机私有配置，不进入 Git、Docker 镜像或云同步。
+`remote.json` 和两个 `*.local.json` 文件属于本机私有配置，不进入 Git、Docker 镜像或云同步。客户端默认仍读取 `remote.json`；也可用 `--remote-config` 选择其他私有文件。
 
 在 `sync-manifest.json` 中：
 
@@ -84,7 +87,7 @@ Windows 新原子写入文件使用受保护的 ACL，仅文件所有者、SYSTE
 
 先按 [服务端部署指南](server/README.md) 部署 VPS，并为每台设备配置独立的安装 ID 和令牌。同一人的设备使用相同服务端用户，每台设备的 Rime `installation_id` 必须不同。
 
-在 [`remote.json`](remote.json) 中填写 HTTPS 地址并启用：
+将 [`remote.json.example`](remote.json.example) 复制为本机 `remote.json`（已有文件不要覆盖），在 `remote.json` 中填写 HTTPS 地址并启用：
 
 ```json
 {
@@ -271,7 +274,7 @@ Windows 原生支持已于 2026-11-10 完成本轮验收，由用户确认接受
 
 2026-11-10 合并远端至 `1e30035` 并升级新入口后，回归 167 项：160 通过、7 项其他平台测试跳过。真实引擎、隔离原生合并、首次词典导入与重复词频检查通过；后台自动部署已取得真实成功凭据，部署后资源指纹一致；LaunchAgent 更新、卸载恢复、异常重启和单实例通过。先前 UI 和注销登录启动已由用户确认，本轮不重复 UI 验收。
 
-本机正式云配置保存在 Git 忽略的 `remote.local.json`，仓库 `remote.json` 仍是禁用的示例。本机已启用内置全量同步，日常执行或重新安装服务时保留参数：
+本机正式云配置保存在 Git 忽略的 `remote.local.json`，仓库模板为禁用的 `remote.json.example`。本机已启用内置全量同步，日常执行或重新安装服务时保留参数：
 
 ```bash
 python3 rime.py --remote-config remote.local.json --native-sync-builtin --sync-now

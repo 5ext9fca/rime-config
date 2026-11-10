@@ -11,7 +11,7 @@
 !tests/test_*.py
 !sync-manifest.json
 !third-party.json
-!remote.json
+!remote.json.example
 !native-sync.json
 !paths.json
 
