@@ -6,24 +6,24 @@
 
 截至 2026-11-10，Windows 原生客户端及真实 VPS 已完成验收。本机当前用户计划任务单实例运行，每 60 秒通过现有 Caddy HTTPS 同步。6 个个人配置文件、2 份词典快照核对通过；后续已按用户要求接入原生 `/sync` 自动合并、导出及回传，模式为 `native-all`。Windows 和 Unix 共用全量词典范围补齐规则；Unix 原生包装器配置及实机验收不在本轮范围。详细证据见 [Windows 验收总结](#windows-验收总结)、[公网部署与同步验收](#公网部署与同步验收) 和 [原生全量同步](#原生全量同步)。
 
-macOS 已完成配置与快照 HTTPS 端到端、手动原生词典合并及用户 UI 验收；launchd 运行与异常重启通过，登录触发未实测。macOS 后台仍为 `snapshots-only`，无人值守原生包装器未交付。下一阶段由另一台 Ubuntu 进行 Linux 实机验收，见下文交接。
+macOS 已完成配置与快照 HTTPS 端到端、手动原生合并、UI 和登录启动验收；新增内置无人值守同步代码尚待在 Mac 启用和实机验收。Ubuntu 已完成真实锁屏触发的内置全量同步、重新部署及 HTTPS 回传，后台为 native-all。当前仅支持 Windows 原生、macOS、原生 Linux，WSL 已移除；不实现异机备份。
 
 ## 代码与数据边界
 
 | 位置 | 职责 |
 | --- | --- |
-| `client/sync.py` | 命令入口、周期调度、本地配置应用与备份 |
-| `client/paths.py` | 跨平台目录发现与私有路径记忆 |
-| `client/service.py` | 跨平台服务入口，systemd / launchd 用户服务管理 |
-| `client/windows_service.py`、`client/windows_service.ps1` | Windows 当前用户计划任务的注册、查询、卸载与恢复 |
-| `client/windows_runner.py` | pythonw 后台入口与 UTF-8 日志 |
-| `client/file_lock.py`、`client/windows_security.py` | 跨进程文件锁及 Windows 私有文件 ACL |
-| `client/identity.py` | 安装 ID 与设备令牌初始化 |
-| `client/scope.py` | 个人配置及词典范围校验 |
+| `rime.py` | 命令入口、周期调度、本地配置应用与备份 |
+| `client/config/paths.py` | 跨平台目录发现与私有路径记忆 |
+| `client/services/service.py` | 跨平台服务入口，systemd / launchd 用户服务管理 |
+| `client/platforms/windows/windows_service.py`、`client/windows_service.ps1` | Windows 当前用户计划任务的注册、查询、卸载与恢复 |
+| `client/platforms/windows/windows_runner.py` | pythonw 后台入口与 UTF-8 日志 |
+| `client/storage/file_lock.py`、`client/platforms/windows/windows_security.py` | 跨进程文件锁及 Windows 私有文件 ACL |
+| `client/config/identity.py` | 安装 ID 与设备令牌初始化 |
+| `client/core/scope.py` | 个人配置及词典范围校验 |
 | `client/remote.py` | HTTPS 同步、三方比较、版本提交与恢复 |
-| `client/dictionaries.py` | 原生个人词典快照交换与应用钩子 |
-| `client/native_sync.py`、`client/weasel_sync.py` | 跨平台全量范围补齐、完成凭据、Windows 原生 /sync 与恢复检查 |
-| `client/third_party.py` | 第三方词典下载、校验与刷新 |
+| `client/application/dictionaries.py` | 原生个人词典快照交换与应用钩子 |
+| `client/maintenance/native_sync.py`、`client/platforms/windows/weasel_sync.py` | 跨平台全量范围补齐、完成凭据、Windows 原生 /sync 与恢复检查 |
+| `client/providers/third_party.py` | 第三方词典下载、校验与刷新 |
 | `server/app.py` | WSGI 接口、设备鉴权与 SQLite 持久化 |
 | `tests/` | 临时目录、模拟上游及客户端/服务端集成测试 |
 
@@ -39,7 +39,7 @@ macOS 已完成配置与快照 HTTPS 端到端、手动原生词典合并及用�
 | 配置合并 | 使用上次同步基线、本地配置和服务端配置进行三方合并，冲突保留双方内容并报告 | 已实现按文件三方比较、冲突保留及显式解决；不自动拼接 YAML |
 | 配置应用 | 合并结果写入 `config/`，按清单应用到实际 Rime 目录 | 已实现本地单向应用、备份和受控删除 |
 | 个人词典应用 | 采集本机学习数据，与远端数据合并，通过 Rime 原生机制更新实际用户词典 | Windows 原生 /sync 已接入后台，按全量范围合并导出并验证；Unix 共用全量规则，平台包装器配置及实机联调待完成 |
-| 后台自动运行 | 当前用户登录后持续同步，支持失败恢复 | Windows 当前用户计划任务已验收；macOS launchd 运行及异常重启通过，登录触发待验收；Linux systemd 待实机验收 |
+| 后台自动运行 | 当前用户登录后持续同步，支持失败恢复 | Windows 当前用户计划任务已验收；macOS launchd 运行、异常重启及注销后登录启动验收完成（登录项由用户确认）；Linux systemd 生命周期及真实登录触发已验收 |
 | 第三方词典刷新 | 按独立周期拉取指定上游词典，校验后更新本机副本 | 已实现项目配置驱动的 GitHub 词典刷新，默认雾凇拼音 |
 
 `config/` 继续作为本地配置应用的唯一权威来源：服务端同步先合并更新此目录，再向输入法目录应用。配置编辑发生在 `config/`；实际目录中的配置修改不会自动反向采集。自动学习词典从实际输入法产生，使用独立的数据同步流程。
@@ -55,18 +55,18 @@ macOS 已完成配置与快照 HTTPS 端到端、手动原生词典合并及用�
 
 ```bash
 # 发现并记住实际 Rime 目录；不联网、不应用文件、不要求令牌
-python3 client/sync.py --discover-target
+python3 rime.py --discover-target
 # 只预览，不写记忆文件
-python3 client/sync.py --discover-target --dry-run
+python3 rime.py --discover-target --dry-run
 # 明确选择并记住一个现有目录
-python3 client/sync.py --discover-target --target /实际/Rime/目录
+python3 rime.py --discover-target --target /实际/Rime/目录
 # 忽略旧记忆及 device.local.json 内旧路径，重新按项目候选路径搜索
-python3 client/sync.py --discover-target --rediscover-target
+python3 rime.py --discover-target --rediscover-target
 ```
 
 目录选择优先级为：`--target` → 当前平台的路径记忆 → `device.local.json` 的 `target` → `paths.json` 候选路径。正常运行和成功初始化也会记住选择，`--dry-run` 始终不写记忆。此后直接运行 `--watch` 即可复用。与此前行为不同，显式 `--target` 会成为后续默认目标；使用临时目录验证时可同时指定临时 `--paths-state`。
 
-`paths.json` 按 `windows`、`wsl`、`macos`、`linux` 配置候选目录列表；旧三平台配置兼容补入 Windows 默认候选。所有候选都必须是展开后的绝对路径，不递归扫描。模板支持 `{home}`、`{xdg_config_home}` 和 `{windows_appdata}`，也支持 `~`；Windows 直接读取 APPDATA，WSL 将 Windows APPDATA 转换为 Linux 路径。例如：
+`paths.json` 按 `windows`、`macos`、`linux` 配置候选目录列表；旧三平台配置兼容补入 Windows 默认候选。所有候选都必须是展开后的绝对路径，不递归扫描。模板支持 `{home}`、`{xdg_config_home}`、`{xdg_data_home}` 和 `{windows_appdata}`，也支持 `~`；Windows 直接读取 APPDATA。例如：
 
 ```json
 {
@@ -74,14 +74,13 @@ python3 client/sync.py --discover-target --rediscover-target
   "required_files": ["installation.yaml"],
   "candidates": {
     "windows": ["{windows_appdata}/Rime"],
-    "wsl": ["{windows_appdata}/Rime", "/mnt/c/Users/hx/AppData/Roaming/Rime"],
     "macos": ["{home}/Library/Rime"],
     "linux": ["{xdg_config_home}/fcitx5/rime", "{xdg_config_home}/ibus/rime"]
   }
 }
 ```
 
-自动发现要求目录存在，并包含 `required_files` 中的所有文件；可调整标记清单，空列表表示只检查目录。WSL 首选通过 Windows APPDATA 检测，互操作不可用时继续检查后续显式候选。多个有效候选不会按顺序盲选，必须用 `--target` 消除歧义；完全没找到时提示修改候选配置。
+自动发现要求目录存在，并包含 `required_files` 中的所有文件；可调整标记清单，空列表表示只检查目录。WSL 环境明确拒绝运行。多个有效候选不会按顺序盲选，必须用 `--target` 消除歧义；完全没找到时提示修改候选配置。
 
 已记住的目录或身份配置目录失效时直接报错，不悄悄切换到其他输入法，也不自动创建原路径。持续模式每轮重新检查目标目录是否仍存在，但不会运行中切换目标；修改路径后重启服务。显式指定的目标也必须已存在，且所有路径拒绝符号链接。
 
@@ -93,12 +92,10 @@ python3 client/sync.py --discover-target --rediscover-target
 首次使用运行：
 
 ```bash
-# WSL（自动检测不成功时显式指定 Windows Rime 目录）
-python3 client/sync.py --init --target /mnt/c/Users/hx/AppData/Roaming/Rime
 # macOS 通常可直接自动检测
-python3 client/sync.py --init
+python3 rime.py --init
 # Ubuntu 按实际输入法选择目标目录
-python3 client/sync.py --init --target ~/.config/fcitx5/rime
+python3 rime.py --init --target ~/.config/fcitx5/rime
 ```
 
 初始化读取目标 `installation.yaml` 的 `installation_id`，以隐藏输入方式接收**已在服务端配置的设备令牌**，保存项目根目录的 `device.local.json`：
@@ -114,12 +111,12 @@ python3 client/sync.py --init --target ~/.config/fcitx5/rime
 
 该文件已通过 `*.local.json` 加入 Git 忽略规则，也不进入 Docker 构建或个人数据同步。初始化以 Unix `0600` 权限或 Windows 受保护 ACL 原子写入，不输出令牌；不会联网验证令牌、自动注册设备、修改 Rime 的安装 ID 或自动开启 `remote.json`。服务端设备配置中的 ID 和令牌必须与此文件一致。
 
-之后运行 `python3 client/sync.py --watch` 即可自动读取安装 ID、令牌和目标目录，无需重复传 `--device-id` 或设置令牌环境变量。`--target` 可覆盖目标路径并更新独立路径记忆；路径变化后应重启持续服务。身份文件每轮重新读取，令牌轮换可重新运行 `--init`；交互输入留空保留已有令牌。安装 ID 变化时必须提供新设备的令牌。
+之后运行 `python3 rime.py --watch` 即可自动读取安装 ID、令牌和目标目录，无需重复传 `--device-id` 或设置令牌环境变量。`--target` 可覆盖目标路径并更新独立路径记忆；路径变化后应重启持续服务。身份文件每轮重新读取，令牌轮换可重新运行 `--init`；交互输入留空保留已有令牌。安装 ID 变化时必须提供新设备的令牌。
 
 没有 Rime 安装文件时可以用 `--init --device-id ID --target PATH` 显式提供；若实际文件中存在不同的 ID 则拒绝初始化。非交互环境支持 `--init --token-stdin` 从标准输入读取一行令牌，例如从私有文件重定向：
 
 ```bash
-python3 client/sync.py --init --token-stdin --target /实际/Rime/目录 < /私有路径/device-token
+python3 rime.py --init --token-stdin --target /实际/Rime/目录 < /私有路径/device-token
 ```
 
 不要把真实令牌写入命令参数。可用 `--device-config /path/to/another.local.json` 选择另一份私有配置；不要把它放入 `config/`。手动指定的 `--device-id` 必须与已加载的身份文件一致。旧 `remote.json` 的 `token_env` 仍兼容，在没有私有文件令牌时读取；私有文件中的令牌优先。
@@ -154,7 +151,7 @@ python3 client/sync.py --init --token-stdin --target /实际/Rime/目录 < /私�
 原生应用命令必须含 `{dictionary}` 占位符，例如：
 
 ```bash
-python3 client/sync.py --dictionary-store /path/to/private-store --device-id DEVICE_ID \
+python3 rime.py --dictionary-store /path/to/private-store --device-id DEVICE_ID \
   --native-sync-command '["/absolute/path/to/native-sync-wrapper", "--dictionary", "{dictionary}"]'
 ```
 
@@ -184,8 +181,8 @@ python3 client/sync.py --dictionary-store /path/to/private-store --device-id DEV
 冲突文件保存在 `<state-dir>/remote/conflicts.json`（Base64 保存 base/local/remote 原始内容），不会输出个人内容到日志。检查后可编辑本地配置为选定的远端内容，或显式选择本轮**所有冲突文件**保留哪一侧：
 
 ```bash
-python3 client/sync.py --resolve-conflicts local
-python3 client/sync.py --resolve-conflicts remote
+python3 rime.py --resolve-conflicts local
+python3 rime.py --resolve-conflicts remote
 ```
 
 该选项仅解决配置文件冲突，不强行覆盖词典分叉。若希望合并冲突文件内容，先在 `config/` 手工合并，再使用 `--resolve-conflicts local`。`remote` 选择会备份并覆盖本地冲突文件。保留冲突记录以便追溯。
@@ -251,13 +248,13 @@ Compose 使用外部 Caddy 网络，容器别名 `rime-sync`、内部端口 8080
 
 ```bash
 # 查看计划；不联网、不创建状态、不写目标
-python3 client/sync.py --third-party-only --dry-run
+python3 rime.py --third-party-only --dry-run
 # 立即刷新，不等待下次周期（仍遵守 enabled）
-python3 client/sync.py --third-party-only --refresh-third-party
+python3 rime.py --third-party-only --refresh-third-party
 # 正常后台运行时，自动按项目配置周期刷新
-python3 client/sync.py --watch
+python3 rime.py --watch
 # 可指定另一份项目配置
-python3 client/sync.py --third-party-only --third-party-config /path/to/third-party.json
+python3 rime.py --third-party-only --third-party-config /path/to/third-party.json
 ```
 
 以上命令同样支持 `--target`、`--state-dir`；Ubuntu 的目标目录有歧义时必须指定。`--refresh-third-party` 在持续模式下仅强制首轮，之后恢复配置周期。单次正常执行未到周期时跳过刷新。
@@ -282,7 +279,7 @@ python3 client/sync.py --third-party-only --third-party-config /path/to/third-pa
 3. 指定私有交换目录和本机 ID，运行服务：
 
 ```bash
-python3 client/sync.py --watch --interval 10 \
+python3 rime.py --watch --interval 10 \
   --target /mnt/c/Users/hx/AppData/Roaming/Rime \
   --device-id 09ad77e5-8a8d-45b8-97f3-b2893bd56e5b \
   --dictionary-store /path/to/private-rime-dictionaries
@@ -290,7 +287,7 @@ python3 client/sync.py --watch --interval 10 \
 
 以上为可选的共享目录模式：各端使用同一个共享目录，或由独立云盘同步其内容。公网 VPS 模式请启用 `remote.json`，不要同时传入 `--dictionary-store`。只允许同步快照文件，不同步原生 `sync/` 目录中附带备份的配置或第三方文件。可在仓库内用 `private/dictionaries/` 作为本地暂存目录，`private/` 已被 Git 忽略；不同设备的本地暂存目录不会自动联网互通。
 
-默认原生同步目录为目标下的 `sync/`；若 `installation.yaml` 设置了 `sync_dir`，须用 `--rime-sync-dir` 指向实际目录（WSL 使用转换后的 Linux 路径）。`--device-id` 须与本机快照中的 `/user_id` 一致，程序会检查收到的快照设备标识及词典名。
+默认原生同步目录为目标下的 `sync/`；若 `installation.yaml` 设置了 `sync_dir`，须用 `--rime-sync-dir` 指向实际目录。`--device-id` 须与本机快照中的 `/user_id` 一致，程序会检查收到的快照设备标识及词典名。
 
 接收远端快照后，再执行 Rime 的“同步用户资料”，由 Rime 合并到本机数据库并导出最新快照；服务下一轮发布它。日常新学习的数据也需先由 Rime 导出，服务不会扫描活动数据库。既未启用远端同步也未提供 `--dictionary-store` 时仅应用配置；未生成快照时会提示，不会声称词典已导入。
 
@@ -322,7 +319,7 @@ python3 client/sync.py --watch --interval 10 \
 - `native_sync.py` 每轮扫描实际目录中的用户数据库名称和原生 `sync/` 下所有设备的 `*.userdb.txt`。校验元数据及路径，拒绝重解析路径、大小写冲突和残留 `.temp.userdb` 等异常数据库。
 - 把发现的词典名追加到 `sync-manifest.json`，先备份旧清单；不删除已有名称，不强制开启被禁用的词典同步，dry-run 仅显示计划。清单在扫描期间变化时停止，避免覆盖并发编辑。
 - HTTPS 请求先确认服务端允许完整范围，再接收快照和执行原生命令；服务端缺项时报告具体名称并停止，需维护者对齐服务端清单后重建容器。客户端不自行修改服务端授权范围。
-- 调用前后再次检查范围；运行期间出现新词典时补齐清单并停止本轮上传。原生全量同步只处理已经存在本机数据库的词典；仅有远端快照而尚无本机数据库的名称会明确报告“尚未导入”，不把复制成功计为合并成功。
+- 调用前后再次检查范围；运行期间出现新词典时补齐清单并停止本轮上传。内置全量同步现在会先安全初始化清单内远端独有词典，再执行前端全量同步；自定义包装器未处理的新名称仍报告尚未导入，不把复制成功计为合并成功。
 - 调用前保留已有本机快照；Windows 另备份原生会覆盖的同步目录 YAML/TXT 副本。不会复制活动 LevelDB 文件，也不把快照备份描述为全部活动数据库的精确回滚镜像。部分原生合并后失败时保留数据，由原生合并语义支持重试，不手动覆盖数据库。
 - 原生命令失败、超时、完成凭据缺失或范围变化时不上传本轮快照，不推进原生成功记录。原生结果单独写入状态目录 `native-all/runs/<本轮ID>/result.json` 和 `native-all/latest.json`；HTTPS 成功版本仍由 `remote/baseline.json` 记录，配置应用由原有配置状态记录。
 - `/sync` 附带备份的配置文件留在原生同步目录，不扩大 `configuration.files`，不上传第三方资源。每轮原生快照备份和结果保留在私有状态目录，当前不自动清理历史备份。
@@ -384,7 +381,7 @@ python3 client/sync.py --watch --interval 10 \
 
 ### macOS 外观适配
 
-**UI 验收结论（2026-11-10）：用户确认通过。** 最终版本为竖排 9 候选、14 号字、系统毛玻璃与 E6 明暗底色、窗口圆角 12、高亮圆角 7、高亮阴影 12；撤销行距 18，继承默认行距 5。首尾候选的额外扩展保留鼠须管原生行为。此结论仅覆盖 UI，不改变无人值守原生包装器、登录启动等未完成项。以下历史阶段记录保留原时间点状态。
+**UI 验收结论（2026-11-10）：用户确认通过。** 最终版本为竖排 9 候选、14 号字、系统毛玻璃与 E6 明暗底色、窗口圆角 12、高亮圆角 7、高亮阴影 12；撤销行距 18，继承默认行距 5。首尾候选的额外扩展保留鼠须管原生行为。此结论仅覆盖 UI，不改变无人值守原生包装器等未完成项；登录启动后续已由用户确认完成。以下历史阶段记录保留原时间点状态。
 
 `config/squirrel.custom.yaml` 已按当前 Windows `weasel.custom.yaml` 重新生成（2026-11-10）：竖排候选列表 `candidate_list_layout: stacked`，文字方向保持 horizontal；候选、序号、注释字号均为 14，候选数量沿用通用配置的 9 个。窗口圆角 12、高亮圆角 7；明暗背景沿用 ABGR 的 `0xe6ffffff` / `0xe6000000`，约 90% 不透明，文字与绿色高亮保持不透明。颜色使用 sRGB，标签高亮字段映射为 `hilited_candidate_label_color`，普通候选及预编辑背景透明。
 
@@ -401,13 +398,17 @@ python3 client/sync.py --watch --interval 10 \
 字段参考：[鼠须管官方配置](https://github.com/rime/squirrel/blob/master/data/squirrel.yaml)。
 
 
+### 明确不实现的功能
+
+按用户决定，不实现自动新设备注册和恢复向导，也不将二者列为待办。设备继续由维护者在服务端配置独立身份与令牌，客户端 `--init` 只保存本机身份。服务端恢复后的数据核对及客户端基线重建继续采用文档化的人工流程；保留现有版本回退检测、备份与安全重试保护。
+
 ## 自动系统服务注册
 
-入口为 `client/sync.py --service install|uninstall|status`，实现集中在 `client/service.py`。操作用户级服务，不申请系统管理员权限。Windows 原生走当前用户计划任务分支；WSL 和 Ubuntu 走 Linux systemd 分支；macOS 走 launchd 分支。
+入口为 `rime.py --service install|uninstall|status`，实现集中在 `client/services/service.py`。操作用户级服务，不申请系统管理员权限。Windows 原生走当前用户计划任务分支；Ubuntu 走 Linux systemd 分支；macOS 走 launchd 分支。
 
-- Windows：`client/windows_service.py` 将 JSON 载荷编码后交给 `windows_service.ps1`，通过 ScheduledTasks 注册 `rime-config-<当前用户 SID>`。Interactive 登录类型、Limited 权限、该用户登录触发，无需密码或令牌进入任务定义。采用 IgnoreNew、无执行时限、电池供电继续运行、失败每分钟重试（最多 999 次），并增加每分钟重复触发器，补偿实机中 RestartOnFailure 未触发的情况；运行中忽略新触发。原生 `pythonw.exe` 直接运行 `windows_runner.py`，在同一任务进程运行客户端并捕获 UTF-8 日志，停止任务即停止客户端。安装先离线预检查，更新前导出旧 XML；失败恢复旧定义与原运行状态，新安装失败删除新任务；无管理标记的任务拒绝覆盖及卸载。查询和卸载不依赖项目同步配置。预览不访问任务计划程序。
+- Windows：`client/platforms/windows/windows_service.py` 将 JSON 载荷编码后交给 `windows_service.ps1`，通过 ScheduledTasks 注册 `rime-config-<当前用户 SID>`。Interactive 登录类型、Limited 权限、该用户登录触发，无需密码或令牌进入任务定义。采用 IgnoreNew、无执行时限、电池供电继续运行、失败每分钟重试（最多 999 次），并增加每分钟重复触发器，补偿实机中 RestartOnFailure 未触发的情况；运行中忽略新触发。原生 `pythonw.exe` 直接运行 `windows_runner.py`，在同一任务进程运行客户端并捕获 UTF-8 日志，停止任务即停止客户端。安装先离线预检查，更新前导出旧 XML；失败恢复旧定义与原运行状态，新安装失败删除新任务；无管理标记的任务拒绝覆盖及卸载。查询和卸载不依赖项目同步配置。预览不访问任务计划程序。
 - Windows 日志为 `%LOCALAPPDATA%\rime-config\logs\service.log`；启动时若超过 10 MiB 保留一个 `.1` 文件，运行中不轮转。计划任务是登录会话内的自动运行机制，不是 SCM 系统服务，用户未登录时不运行。安装成功不等于同步已成功。
-- Windows 原生路径通过 `%APPDATA%\Rime` 发现；旧三平台 `paths.json` 兼容补入此默认候选。Windows 与 WSL 使用各自的路径记忆键。所有客户端 JSON 读取显式使用 UTF-8，清单继续使用 `/` 分隔；拒绝 Windows 设备名、备用数据流、尾随空格/点和目录联接等重解析路径。
+- Windows 原生路径通过 `%APPDATA%\Rime` 发现；旧三平台 `paths.json` 兼容补入此默认候选。旧 WSL 路径记忆不再使用。所有客户端 JSON 读取显式使用 UTF-8，清单继续使用 `/` 分隔；拒绝 Windows 设备名、备用数据流、尾随空格/点和目录联接等重解析路径。
 - 跨进程锁集中在 `file_lock.py`：Unix 使用 `flock`，Windows 使用 `msvcrt.locking` 非阻塞锁定第 0 字节，文件句柄关闭即释放。四条写入流程均使用此锁。Windows 的锁不保证与 WSL `flock` 互斥，不应让 Windows 和 WSL 同时管理同一实际目录或状态目录。
 - 原子替换的临时文件在写入数据前设置 Windows 受保护 DACL（所有者、SYSTEM、管理员），失败停止写入；Unix 保持 mkstemp 的 0600。Windows `chmod(0600)` 本身不提供等价 ACL 安全性。备份目录等应存放在用户私有目录，未对已有文件做全目录 ACL 迁移。
 - systemd：服务名 `rime-config.service`，写入 `$XDG_CONFIG_HOME/systemd/user/`（默认 `~/.config/systemd/user/`）。执行 daemon-reload、enable 和 restart。采用 `Restart=on-failure`、10 秒重试及 `UMask=0077`，禁用启动次数限制以支持长时间离线恢复。
@@ -421,13 +422,40 @@ python3 client/sync.py --watch --interval 10 \
 
 系统接口参考：[Microsoft ScheduledTasks](https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/)、[systemd.service](https://freedesktop.org/software/systemd/man/latest/systemd.service.html)、[systemd 参数语法](https://www.freedesktop.org/software/systemd/man/256/systemd.syntax.html)、[Apple LaunchAgent 指南](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html)。
 
-自动测试覆盖三类服务的安装、更新、卸载、注册失败恢复、参数处理和只读预览；Windows 另完成真实任务生命周期及故障恢复测试。systemd / launchd 的实机运行仍需在对应平台验收。
+自动测试覆盖三类服务的安装、更新、卸载、注册失败恢复、参数处理和只读预览；Windows 另完成真实任务生命周期及故障恢复测试。Ubuntu systemd 实机运行及登录触发已验收；macOS launchd 运行、异常重启已验收，注销后登录启动由用户确认完成。
 
 ## 开发与验证
 
+### Ubuntu / Linux 实机验收（2026-11-10）
+
+环境：Ubuntu 26.04.1 LTS（原生 Linux 7.0.0-43-generic，KDE Wayland）、Python 3.14.4、Fcitx5 5.1.19、fcitx5-rime 5.1.13、librime 1.16.1。实际目录为 `~/.local/share/fcitx5/rime`。首次发现暴露候选目录遗漏，已增加 `{xdg_data_home}/fcitx5/rime` 与 `XDG_DATA_HOME` 模板支持，保留既有候选及多目录显式选择规则。
+
+- 自动回归 107 项：102 通过、5 项平台条件跳过。只读 `--dry-run`、`--plan-json` 和服务安装预览通过。新增 XDG 数据目录环境变量及默认值测试。
+- 配置应用：7 个范围内文件在 `config/`、实际目录和 HTTPS 返回值间逐字节一致。首次接入的 6 个文件仅 CRLF/LF 不同，逐一验证内容等价并备份后对齐服务端字节，没有整份冲突选边。实际目录旧文件由客户端备份；未修改无关个人补丁。
+- 原生部署：通过 Fcitx5 D-Bus `SetConfig` 的 `fcitx://config/addon/rime/deploy` 入口部署；构建结果包含 9 候选、`hx_preferences` 和万象模型。雾凇方案、Lua、OpenCC、模型及 librime Lua/octagram 插件存在。用户反馈“输入正常，UI为默认”，未配置 Linux 专属外观。
+- 第三方词典：真实下载并按 Git blob 校验，锁定提交 `99662ba01e3affa6a0f009174ca530b887bac3b6`，17 个受管理文件最终哈希一致。隔离目录另验证真实下载、离线失败及损坏下载保留旧文件/成功凭据、恢复重试和个人短语保留。
+- HTTPS：沿用用户 hx，注册 Ubuntu 自身 installation_id 的独立令牌，私有配置为 `device.local.json` 与 `remote.local.json`。已备份服务端设置并重建应用容器。7 个配置、2 份本机快照与真实服务核对通过，本轮最终核对 revision 23；其他在线设备后续可继续推进版本。
+- 真实 HTTPS 隔离测试通过双设备交换、不同文件三方合并、同文件冲突保留、客户端离线恢复、提交成功后丢失响应重试、重复请求幂等及过期 CAS 拒绝。故障由客户端注入，未切断 VPS 网络。合成数据使用独立测试用户；临时令牌已撤销并验证 401，清理测试记录前使用 SQLite backup API 备份。
+- 原生导入：`tests/linux_native_acceptance.py` 使用本机 `/usr/bin/rime_dict_manager`，在新建隔离目录验证双词典范围、双设备合并和多轮词频不变。随后备份实际原生快照，通过 Fcitx5 的 `fcitx://config/addon/rime/sync` 全量入口执行实际导入/导出；私有日志记录本轮 `Rime Sync user data`、`deploy start`、`deploy success`，之后回传本机两份快照。异步 D-Bus 返回 0 本身不作为成功依据。
+- 后台：systemd 用户服务安装、更新、卸载重装、单实例及 SIGKILL 后自动重启通过，最终 enabled/running，显式使用 `remote.local.json`。当前模式仍为 **snapshots-only**，本轮原生同步为单独触发；未交付无人值守 Fcitx5 原生包装器。服务端轮询不会自动导入活动数据库。
+
+**本轮 Ubuntu 实机验收完成（快照后台同步＋手动原生合并范围）。** 用户注销并重新登录后，SDDM Wayland 会话 7 于 17:13:42 CST 建立；旧用户管理器停止服务，新用户管理器在同一时间自动启动服务，PID 12401，enabled/active/running，NRestarts=0，单实例。17:14:24 HTTPS 同步成功，revision 24。本次检查未手动启动或重启服务，Linger=no。登录证据为 `login-service.log` 与 `login-journal.log`。无人值守原生包装器属于后续能力；VPS 定期备份也未配置。证据与私有验收脚本保存在 `private/ubuntu-acceptance/`（不入 Git），关键记录为 `unit-tests.log`、`linux-native.log`、`frontend-sync.log`、`production-result.json`、`service-result.json`、`https-check.log` 及各隔离目录的 `result.json`。
+
+Fcitx5 原生入口依据 [fcitx5-rime 源码](https://github.com/fcitx/fcitx5-rime/blob/5.1.13/src/rimeengine.cpp) 中 `setSubConfig`、`deploy` 与 `sync`；本轮没有把独立 dict-manager 验收脚本作为后台全量包装器。
+
+### Linux 外观适配（2026-11-10）
+
+**UI 验收结论：用户确认通过。** 最终外观为竖排 9 候选、14 号字、明暗黑白底色、绿色高亮、窗口圆角 12、高亮圆角 7；背景 alpha E6（约 10% 透明），背景模糊关闭。以下调试记录保留各阶段状态，最终以此结论为准。
+
+已从 Windows/macOS hx 样式生成 `config/fcitx5/themes/hx-light` 和 `hx-dark`，通过独立 `client/platforms/linux/apply_fcitx5_theme.py` 备份、合并并应用。Fcitx5 字体使用 Sans 14 系统回退，序号与注释缩放为 100%；竖排 9 候选，浅色绿色为 `#00b050`（原 ABGR `0x50b000`），深色为 `#008000`。PNG 九宫格保留窗口 12、高亮 7 圆角，面板底色 alpha CC（80% 不透明），窗口阴影向下偏移 3；阴影为视觉近似，不声称与小狼毫半径算法一致。
+
+主题最初启用 KWin 模糊及圆角遮罩，后按用户要求关闭背景模糊，保留半透明；配置依据 [Fcitx5 5.1.19 主题定义](https://github.com/fcitx/fcitx5/blob/5.1.19/src/ui/classic/theme.h)。关闭系统强调色覆盖以保留绿色，自动跟随系统明暗。不会迁移 Windows 程序名单。Classic UI 主题作用于所有使用该 UI 的输入法。
+
+已通过 INI/PNG 校验，并通过当前 Fcitx5 D-Bus 回读确认竖排、字体、明暗主题选择及两主题圆角资源、注释字号和模糊配置被识别。重复应用验证通过；原始文件与配置证据在 `private/fcitx5-theme/`。用户反馈首版透明感不明显；检查发现底色与阴影叠加使实际 alpha 升至 234/238。现将阴影限制在面板外，Linux 底色调整为 CC，已验证源文件及安装图片中心 alpha 均为 204，文字/绿色高亮保持不透明。KWin D-Bus 确认 blur 效果已加载；该阶段重新加载成功；后续最终样式已由用户确认通过，见本节开头。先前“输入正常、UI 默认”不作为新主题验收。资源未进入 Rime 同步清单，应用始终从 `config/fcitx5/` 读取。
+
 ### Ubuntu / Linux 验收交接
 
-下一阶段由另一台 Ubuntu 实机继续；本次 macOS UI 已由用户确认通过，不将其结果视为 Linux 已验收。
+以下保留原交接清单；本机 Ubuntu 执行结果及能力边界见上方实机验收记录。其他 Linux 前端和设备需独立验收。
 
 1. 拉取本次提交，先确认实际使用的前端是 IBus Rime、Fcitx5 Rime 或其他实现，再发现实际目录；多个候选必须明确选择，不沿用 Mac 私有路径文件。
 2. 运行 `python3 -m unittest discover -s tests -v`、`--dry-run`、`--plan-json`，记录真实平台、版本、通过与跳过项。原生验收脚本必须适配 Linux 已安装运行时，不能直接套用 Windows DLL 或 macOS 应用路径。
@@ -437,7 +465,7 @@ python3 client/sync.py --watch --interval 10 \
 6. 先在隔离目录验证原生快照合并与重复词频，再验收实际 Linux 前端的全量原生入口。如实现无人值守包装器，遵守前述空闲、限频、真实完成凭据及失败禁止上传约定；不能把异步通知退出码 0 当成功，不直接操作活动数据库。
 7. 验收 systemd 用户服务的安装、更新、卸载、单实例、异常重启及实际登录启动；最后一次配置部署后由用户确认 Linux UI 和输入体验。Windows/macOS 外观补丁不能替代 Linux 前端外观配置。
 
-交接时分开报告配置应用、快照传输、原生导入、后台运行与 UI。更新本文验证记录和 README 使用方式；服务端有变更时同步维护 server/README。Mac 尚未交付无人值守原生包装器、未实测登录启动；VPS 定期备份也仍未配置，这些不应被 Linux 验收默认为已完成。
+交接时分开报告配置应用、快照传输、原生导入、后台运行与 UI。更新本文验证记录和 README 使用方式；服务端有变更时同步维护 server/README。Mac 尚未交付无人值守原生包装器，注销后登录启动已由用户确认完成；VPS 定期备份也仍未配置，这些不应被 Linux 验收默认为已完成。
 
 
 ### macOS 公网与原生合并续验（2026-11-10）
@@ -448,7 +476,7 @@ python3 client/sync.py --watch --interval 10 \
 - 通过鼠须管自身 `Squirrel --sync` 合并接收的 Windows 快照，再请求重新部署。专属本轮日志包含两个词典的同步及 `3 tasks ran: 3 success, 0 failure`；两个本机快照均新生成且通过元数据校验。不直接打开或复制活动数据库。
 - 最终 7 个配置在 `config/`、实际目录及 HTTPS 返回值间逐字节一致；本机 `luna_pinyin`、`rime_ice` 快照与服务器一致，导出词条覆盖 Windows 快照词条。随后重复 HTTPS 同步保持版本 18。多次原生合并词频不变的验证仍以隔离验收脚本为证据，不把线上有其他设备写入时的版本变化解释为幂等失败。
 - LaunchAgent 已安装并运行，参数显式使用 `--remote-config /Users/hx/rime-config/remote.local.json`，每 60 秒检查云同步、失败后 30 秒重试；本地轮询间隔 5 秒。正式设备身份与令牌不放进服务参数。
-- 本轮完成的是 **Mac/VPS 配置与快照端到端 + 手动触发的真实原生合并**。后台模式仍为 `snapshots-only`，未安装无人值守 macOS 原生包装器；新学习数据导出和接收快照导入仍需触发“同步用户资料”。UI 已在最后一次应用与重新部署后由用户确认通过（2026-11-10）；注销登录自动启动仍未实测。
+- 本轮完成的是 **Mac/VPS 配置与快照端到端 + 手动触发的真实原生合并**。后台模式仍为 `snapshots-only`，未安装无人值守 macOS 原生包装器；新学习数据导出和接收快照导入仍需触发“同步用户资料”。UI 已在最后一次应用与重新部署后由用户确认通过（2026-11-10）；注销后登录自动启动验收已由用户确认完成（本次仅更新记录，未新增终端日志取证）。
 
 私有证据在 `private/macos-acceptance/result.json`、`native-remote-merge.log`，源配置备份在同目录 `config-before-*`，实际目录备份由客户端状态目录保存。服务端设置和清单备份后缀为 `.macos-backup-*`。这些证据及备份不提交 Git。原生入口参考 [Squirrel 命令入口](https://github.com/rime/squirrel/blob/master/sources/Main.swift) 和 [同步调用实现](https://github.com/rime/squirrel/blob/master/sources/SquirrelApplicationDelegate.swift)；`--sync` 本身是异步通知，不能仅以退出码 0 判定导入成功。
 
@@ -459,7 +487,7 @@ python3 client/sync.py --watch --interval 10 \
 - 回归 106 项：101 项通过，5 项 Windows PowerShell 专用测试跳过。通过鼠须管 Frameworks 下的 librime 和 Lua 插件加载实际 Lua 测试，未跳过该项。日志：`/private/tmp/rime-macos-merged-tests.log`。
 - 新增 `tests/macos_native_acceptance.py`：调用鼠须管 `rime_dict_manager`，仅在新建隔离目录验证两个词典的快照恢复、双设备合并、范围限制和多次重复合并词频不变。全部通过，未访问活动数据库。Windows 的 ctypes 验收脚本依赖 `RimeSetup` 导出符号，不能直接用于本机鼠须管动态库；本轮不将其计为 macOS 引擎验收通过。
 - `--dry-run`、`--plan-json`、launchd 安装预览通过。实际重新安装并启动新版 LaunchAgent 后状态为 running，`workflow-result.json` 记录 macOS 配置应用与第三方检查成功；云同步和词典交换因尚未配置而跳过。
-- 最后一次应用后，7 个清单内配置逐字节匹配实际目录；`rime_deployer --build` 与 `Squirrel --reload` 均返回 0，生成配置中的横排及明暗主题存在。UI 按用户要求留待其在此后验收；注销登录自动启动未复验。
+- 最后一次应用后，7 个清单内配置逐字节匹配实际目录；`rime_deployer --build` 与 `Squirrel --reload` 均返回 0，生成配置中的横排及明暗主题存在。UI 按用户要求留待其在此后验收；该阶段注销登录自动启动未复验，后续用户已确认验收完成。
 - 已获用户授权为 Mac 注册独立 VPS 凭据并启用同步。首次 SSH 查询显示生产容器 healthy；随后 SSH 密钥交换超时，HTTPS 请求也超时，注册命令未完成。本地仅生成了私有候选凭据，未写入正式 `device.local.json`，`remote.json` 保持禁用；不能声称 Mac 已接入公网。已停止本轮滞留 SSH 请求。网络恢复后需先核对服务端设备及范围，再继续注册和同步。
 - 实际学习词典的在线原生导入、无人值守 macOS 包装器及 Mac/VPS 端到端仍未完成，隔离快照测试不替代这些验收。
 
@@ -478,7 +506,7 @@ python3 tests/macos_native_acceptance.py \
 - 使用 `TMPDIR=/private/tmp` 运行 76 项测试，全部通过。Lua 测试需先用 `ctypes.CDLL` 全局加载鼠须管 `Contents/Frameworks/librime.1.dylib`，再将测试库发现指向 `rime-plugins/librime-lua.dylib`；普通 unittest 命令仍可能跳过该项。系统默认临时路径包含 `/var` 符号链接，会被当前路径安全检查拒绝；测试使用真实目录，不放宽符号链接保护。本轮完整测试日志保存在 `/private/tmp/rime-macos-full-tests.log`（临时文件）。
 - 自动发现 `~/Library/Rime`，个人配置应用成功并保留修改前备份；实际目录原有万象模型配置由项目内对应配置接管。
 - 真实 GitHub 检查及词典校验成功，上游提交为 `99662ba01e3affa6a0f009174ca530b887bac3b6`，目标词典已是该版本。本轮未验证真实下载失败后的恢复。
-- 用户级 `local.rime-config` LaunchAgent 的安装、更新、卸载、重装通过。模拟 SIGKILL 后自动重启，启动次数由 1 增至 2，最终为 running，后台错误日志为空；尚未验证注销登录自动启动。
+- 用户级 `local.rime-config` LaunchAgent 的安装、更新、卸载、重装通过。模拟 SIGKILL 后自动重启，启动次数由 1 增至 2，最终为 running，后台错误日志为空；该阶段尚未验证注销登录自动启动，后续用户已确认验收完成。
 - 鼠须管自带 `rime_deployer --build` 返回 0；生成配置包含 9 候选、`hx_preferences` 处理器及万象模型设置。这不代表真实输入体验已验收。
 - 用户已启用并切换到鼠须管，确认能输入中文；实际 UI 验收由用户负责。自动按键未触发候选，不据此判定输入法故障；快捷键、外观等不计为终端验收通过项。
 - 使用鼠须管自带 `rime_dict_manager` 在 `/private/tmp` 隔离目录中完成测试词典导入、导出和原生快照恢复。`luna_pinyin`、`rime_ice` 均验证保留两个模拟设备的词条，重复恢复后的导出内容（含词频）一致；原生快照通过客户端格式校验，双设备目录交换及重复交换通过。未操作实际活动数据库，未安装无人值守原生同步包装程序，实际学习数据导入仍未验收。
@@ -547,7 +575,7 @@ $env:RIME_TEST_DLL = 'C:\Program Files\Rime\weasel-0.17.4\rime.dll'
 python -X utf8 -m unittest discover -s tests -v
 python -X utf8 tests/windows_native_acceptance.py --dll "$env:RIME_TEST_DLL" --workspace private
 python -X utf8 tests/windows_engine_acceptance.py --dll "$env:RIME_TEST_DLL" --source "$env:APPDATA\Rime" --workspace private
-python client/sync.py --service status
+python rime.py --service status
 ```
 
 两个独立验收脚本在 workspace 下创建新目录：原生测试使用合成词条，引擎测试复制方案、资源与构建产物，不复制活动数据库。结果写入各目录的 result.json。测试钩子拒绝没有隔离测试标记的目录。
@@ -566,12 +594,12 @@ python client/sync.py --service status
 
 2026-11-10，参考 WSL `~/dotfiles` 的共享计划、平台执行器及执行前复核模式，拆分 Rime 客户端的决策与平台副作用。配置仍从 `config/` 复制应用，未引入 dotfiles 的硬链接管理方式。
 
-- `client/plans.py`：纯数据决策，生成配置文件、原生维护、工作流计划；校验版本、动作与依赖，并分派固定工作流阶段。
-- `client/sync.py`：观察配置与目标，生成指纹计划；远端合并后重新规划，备份前及写入前复核源与目标指纹，发现变化停止。原有锁、备份及恢复机制保留。
-- `client/native_sync.py`：采集元数据、快照指纹与持久化调度状态，调用公共计划判断限频、无变化、重试和空闲条件；仍负责范围约束、完成校验及失败快照隔离。
-- `client/platform_execution.py`：Windows 调用小狼毫、输入空闲探测及计划任务；Unix 调用原生包装器及完成凭据约定，分派 systemd 或 launchd。`client/unix_service.py` 保存从公共服务入口提取的 Unix 安装与恢复逻辑；`client/service.py` 保留公共参数和模板规则。
+- `client/core/plans.py`：纯数据决策，生成配置文件、原生维护、工作流计划；校验版本、动作与依赖，并分派固定工作流阶段。
+- `rime.py`：观察配置与目标，生成指纹计划；远端合并后重新规划，备份前及写入前复核源与目标指纹，发现变化停止。原有锁、备份及恢复机制保留。
+- `client/maintenance/native_sync.py`：采集元数据、快照指纹与持久化调度状态，调用公共计划判断限频、无变化、重试和空闲条件；仍负责范围约束、完成校验及失败快照隔离。
+- `client/platforms/platform_execution.py`：Windows 调用小狼毫、输入空闲探测及计划任务；Unix 调用原生包装器及完成凭据约定，分派 systemd 或 launchd。`client/services/unix_service.py` 保存从公共服务入口提取的 Unix 安装与恢复逻辑；`client/services/service.py` 保留公共参数和模板规则。
 
-计划 JSON 顶层字段固定为 `kind/version/platform/steps`，版本为整数 `1`，平台为 `windows/wsl/linux/macos`。每步固定为 `id/action/reason/requires/details`，依赖只能引用前置步骤。契约由 `plans.validate()` 校验，未知类型、版本、动作及非法依赖在分派前拒绝。
+计划 JSON 顶层字段固定为 `kind/version/platform/steps`，版本为整数 `1`，平台为 `windows/linux/macos`。每步固定为 `id/action/reason/requires/details`，依赖只能引用前置步骤。契约由 `plans.validate()` 校验，未知类型、版本、动作及非法依赖在分派前拒绝。
 
 | kind | 动作 | details |
 | --- | --- | --- |
@@ -624,3 +652,138 @@ Windows 已重新安装并启动当前用户后台任务，新版 `workflow-resu
 - 此次公网部署验收阶段为 `snapshots-only`；后续已接入下文的 Windows 原生全量同步，当前模式为 `native-all`。
 
 私有证据：`private/https-acceptance-lqz64pff/result.json`（HTTPS 测试），`private/deploy/production-result.json`（真实文件及快照核对），`private/deploy/final-result.json`（撤销、清理及安全检查）。部署与验收脚本位于 `private/deploy/`，不入 Git；其中初始化脚本要求空远端状态，不能直接在已运行的生产账号上重复执行。远端单元测试记录位于 `/tmp/rime-tests.log`，临时目录日志不作为长期备份。
+
+2026-11-10 Linux 外观续调：用户确认不采用 KWin 广范围模糊，已将明暗主题及生成器的 `EnableBlur` 设为 `False`，保留底色 alpha CC（80% 不透明）、文字与绿色高亮不透明。仅关闭候选框的模糊请求，不修改桌面全局模糊设置。
+
+2026-11-10 Linux 外观最终调整：按用户要求，明暗底色改为 alpha E6（230/255，约 90% 不透明、10% 透明），继续关闭背景模糊，阴影不叠加到面板内部；文字与绿色高亮保持不透明。此设置替代此前 CC 底色。
+
+## 自动维护扩展（2026-11-10）
+
+本轮新增自动令牌轮换、按用户服务端词典范围扩展、Linux 主题云同步和应用、变更后重新部署、受管理日志过期清理、服务端定期备份及保留策略。此前“不自动部署”“主题不云同步”“未配置周期备份”的记录是历史状态，当前以本节为准。自动新设备注册和恢复向导仍不实现。
+
+### 协议与安全重试
+
+- `POST /rime/v1/token/refresh` 接收客户端生成的随机令牌；SQLite `credentials` 保存注册初始令牌哈希、当前/前一令牌哈希和 24 小时宽限截止时间。注册配置继续决定有效设备，删除设备或改变初始令牌立即使旧派生身份失效（设置修改需重建容器）。旧令牌过期后不能读写数据，只能携带相同新令牌重试已完成的轮换；旧令牌不能再派生另一令牌。宽限期间拒绝再次轮换，避免丢失响应的客户端被连续轮换锁死。
+- 客户端 `token/rotation.json` 在请求前保存候选令牌，以文件锁串行化，服务确认后原子更新私有身份，再清除候选并记录完成时间。响应丢失、身份写入中断均可恢复；候选文件同样按私有凭据保护，不入 Git 或日志。首次启用会轮换一次，随后默认每 30 天。
+- `POST /rime/v1/scope/dictionaries` 仅允许认证设备为自身用户追加个人词典名称，验证路径、大小写碰撞及数量上限。服务端 `auto_expand_dictionaries` 默认兼容旧配置为 false，示例及本机部署开启；`max_dictionaries` 默认 128。增量存入 `dictionary_scopes`，GET 返回静态范围与本用户增量的并集；禁用词典时拒绝扩展。客户端扩展成功后重新 GET 校验，再执行原生处理和上传。不会扩展配置文件清单或第三方资源权限。
+
+### 主题、部署与计划
+
+`fcitx5/theme.json` 是 UTF-8 文本资源包，内含固定路径资源的 Base64；因此无需放宽原状态协议的文本约束。它在 `configuration.files` 中按文件三方合并，源仍为 `config/`。普通配置应用排除 `fcitx5/`，仅 Linux 的主题阶段解码、校验、备份并应用到 Fcitx5；保留其他 Classic UI 设置。只允许固定 hx 明暗主题文件和外观项，拒绝外部图片路径、异常尺寸与路径逃逸。重复相同内容不重载，范围缩小/资源包缺失时保留已安装主题。
+
+工作流使用 version=2，保留原四阶段，追加 `theme-apply`、`frontend-deploy`、`log-cleanup`；version=1 仍能校验和执行原四阶段。配置文件计划、原生同步计划保持 version=1。预览只读、无联网或原生调用，不接受保存的计划作为执行输入。
+
+部署依配置和第三方词典的实际字节指纹判断，成功指纹持久化；失败或进程中断保留重试时间，不因源文件已经应用而丢失待部署任务。本机 Fcitx5 内置适配器核对目标目录、检查空闲/锁屏，通过前端发起部署，使用本次 journal 游标及进程 ID 过滤事件，要求开始后的成功事件，并拒绝失败或并发同步。只保存维护事件，不将按键/词条正文复制到项目日志。诊断期间临时启用 rime 调试日志并在 finally 恢复信息级别；系统 journal 可能包含该短时诊断输出。180 秒未完成视为失败，默认 900 秒后重试。KDE Wayland 不支持传统空闲查询时，安全退化为等待锁屏。Windows/macOS/WSL 通过命令＋本轮凭据契约接入，本轮未交付其内置部署适配器或实机验收。自动部署未扩大为无人值守原生词典合并。
+
+### 日志与备份保留
+
+后台进程使用按日及大小分段的专用日志，默认 30 天过期、10 MiB 换文件；仅匹配自身命名规则的日志会被清理，不删除状态、冲突、待确认提交、快照或备份。服务端 Gunicorn 应用日志同样保存在 `/data/logs/` 并按 30 天清理；Docker 外层日志限制 3×10 MiB。旧版外层文件及宿主 journal 不做跨应用清理。
+
+服务端健康检查/状态请求驱动每日备份（运行中的 Compose 健康检查每 30 秒触发检查），SQLite 事务占用调度槽以避免多 worker 重复创建；SQLite backup API 创建临时副本，完整性检查通过后原子发布，权限 0600。失败不清理旧备份并释放调度槽。只清理 `/data/backups/auto-*.sqlite3` 中超出 30 天且不属于最新 7 份的文件；历史手工备份、升级归档、设置备份及宿主 `server/backups/` 不自动删除。该策略不代表异机备份或已完成恢复演练。
+
+### 验证边界
+
+新增回归覆盖轮换重试/撤销/宽限失效、身份隔离、范围扩展及上限、主题回滚与只读预览、部署失败重试和并发资源变化、日志过期及保护非日志、备份完整性及最少保留数。Ubuntu 已验证真实 Fcitx5 重新部署；真实 VPS 验证轮换响应丢失重试、范围扩展幂等及用户隔离、撤销派生令牌和主题字节一致性。测试身份已撤销，测试记录已删除；证据保存在 `private/automation-acceptance/`。其他平台的部署和日志实际运行仍需各端验收。
+
+自动维护收尾：Ubuntu 回归 117 项（112 通过、5 项 Windows 专属跳过）；VPS 隔离容器此前回归 116 项（110 通过、6 项平台条件跳过）。新增日志配置回归用于防止 Gunicorn 默认根日志器引用被替换的处理器；修正后容器健康，真实 HTTPS、新令牌、8 个配置及自动备份完整性复核通过。当前 Ubuntu 后台已恢复运行，自动部署默认仍等待空闲/锁屏。
+
+## 客户端备份保留与独立服务端备份（2026-11-10）
+
+本节取代前述“客户端备份不自动清理”以及“服务端备份由健康检查驱动”的现状描述；历史验收记录保留。自动新设备注册及恢复向导仍不实现。
+
+客户端 `backup_retention.py` 只处理明确列出的状态子目录，以写入方成功发布的 `.completed/<备份名>.json` 为主要完成凭据，兼容旧配置/第三方 applied 日志及原生 success 结果。配置、远端、快照交换、第三方、主题、原生运行与清单备份分组保留，默认 30 天、每组至少 7 份、每天一次。清理取得对应写入锁后重新观察；busy、路径异常、符号链接/重解析路径及无法确认完成的备份均不删除。远端 pending/error 状态保护相关备份，原生 unsafe/failed/running 状态保护原生组；最新原生运行单独保护。根状态、基线、冲突、凭据及实际/交换目录不在删除范围。状态目录只保存清理报告与下次执行时间；预览不写入。旧策略文件缺少 backups 字段时默认禁用，项目配置显式启用。
+
+工作流升级为 version=3，在 version=2 的七阶段后追加独立 `backup-cleanup`；仍能校验和执行 v1/v2，文件和原生计划仍为 v1。备份清理与云端成功无依赖，依据各组恢复状态单独决定保留，不能因为网络失败删除待恢复备份。
+
+服务端 `backup_worker.py` 由独立 Compose `backup` 容器运行（无网络、只读根目录、去除 capabilities）。每 60 秒检查调度；HTTP 状态接口及健康检查不再执行备份。应用与备份容器共享数据卷，注册配置及范围清单只读挂载；修改 bind mount 设置需同时重建两容器。数据库文件锁防止并发备份，SQLite 维护表保存成功时间和 10 分钟中断租约；原生备份过程最长 300 秒。首次切换到完整备份格式会立即生成一套，不被旧数据库单文件备份的间隔阻挡。
+
+每套 `auto-<编号>` 包含 `.sqlite3`、`.settings.json`、`.scope.json` 及最后发布的 `.manifest.json`。数据库通过 SQLite backup API 复制，随后 integrity_check；配置读取前后校验未变，所有成员权限 0600，SHA-256 写入完成清单。只有完成且成员哈希匹配的套件才参与保留计数和删除；默认 30 天且至少最近 7 套。旧单文件自动备份、手工备份、升级归档及不完整/损坏套件保留，不以它们凑足最低可用备份数。备份失败保留旧套件、释放租约并记录独立失败心跳，不影响 HTTP 健康。进程中断后文件锁自动释放，租约到期后恢复。心跳在 `/data/backup-worker.json`，不包含凭据或词条。
+
+隔离测试覆盖年龄＋最低份数、只读预览、写入锁冲突、待确认远端保护、最新/失败原生保护、符号链接拒绝、格式迁移、备份失败重试、并发/中断租约和套件清理。恢复验证只在隔离目录打开副本并通过应用接口核对轮换令牌、用户版本和动态词典范围，不覆盖生产数据库，不构成恢复向导或生产灾难切换演练。
+
+本轮实机验收：Ubuntu 回归 126 项（121 通过、5 项平台跳过），VPS 无网络只读测试容器回归 126 项（120 通过、6 项平台跳过）。Ubuntu 用户服务已实际写入备份清理成功记录，当前无到期候选。VPS app/backup 两容器均 healthy，独立进程首次自动生成完整套件（无需 API 触发）；重复调度返回 not-due。将该套件复制到无网络容器临时目录，SQLite 完整性检查通过，轮换后的 Ubuntu 令牌可认证；恢复出的 revision=27、8 个配置文件及 3 个设备的词典状态与实时 HTTPS 返回完整一致，成员权限均为 0600。验证前后线上用户状态一致。私有证据位于 `private/backup-acceptance/`，未在生产卷执行恢复。
+
+## 内置原生维护与方案警告修复进展（2026-11-10）
+
+用户目标为上一轮清单第 1、2、7 项：macOS/Ubuntu 无人值守全量词典维护，Windows/macOS/WSL 内置重新部署，melt_eng/radical_pinyin 循环依赖及全局 grammar 缺失警告修复。目标尚未宣告完成。
+
+新增 `--native-sync-builtin`，服务参数允许持久化。FullNativeSync 仍承担范围、锁、限频及禁止失败输出回传；旧 command/deployer 调度绑定保持原结构，避免升级绕过或破坏既有限频。内置 Unix 分派位于 platform_execution，部署亦经原适配器分派；计划仍为 workflow v3，只增加 native_backend=builtin 取值。`fcitx_maintenance` 共用部署/同步观测逻辑和按目标命名的用户锁，任务成功后再次检查前端 PID。`squirrel_maintenance` 读取当前 PID 的新增 INFO 日志，要求本轮 task start、单组全成功统计和操作范围匹配。Windows 部署经注册表定位，使用独立子进程日志及原 IPC probe；WSL 经参数数组调用 Windows Python 执行同一实现。`rime_api` 兼容仅导出版本化 C API 的 Unix librime，按 data_size 检查函数指针，不打开活动数据库。
+
+官方源码依据：<https://github.com/fcitx/fcitx5-rime/blob/master/src/rimeengine.cpp>、<https://github.com/rime/squirrel/blob/master/sources/SquirrelApplicationDelegate.swift>、<https://github.com/rime/weasel/blob/master/WeaselDeployer/Configurator.cpp>、<https://github.com/rime/librime/blob/master/src/rime/deployer.cc>。原生 CLI 返回不能证明异步完成。
+
+警告定位：本机原始方案无对应 custom 文件时未出现循环；新增补丁后，即便把 speller/algebra 覆盖为纯列表，原方案内部 __include 仍在补丁解析前造成循环。已用隔离目录复现，随后将当前全拼规则内联、英文公共规则移至独立 hx_english_algebra 资源，保留原方案其他内容和用户偏好；新增空全局 grammar 默认值，具体模型参数仍在 rime_ice.custom 中。两份最终编译方案去除构建元数据后与修复前结构完整相等，隔离编译无 circular/blocking-node/ERROR；真实 librime 引擎的双方案中文、英文、Ctrl+Space 及有效拼写规则检查通过，未接触活动数据库。第三方词典内容重复词条警告不在本项范围内。
+
+当前回归 136 项：131 通过、5 项 Windows 条件跳过。新增覆盖旧调度兼容、内置分派、服务参数、并发维护/失败/前端重启、鼠须管缺失开始事件/范围不齐、小狼毫缺失任务或恢复证据、WSL 参数数组及缺失新快照拒绝。证据在 private/native-maintenance，proposed-sync-manifest.json 为待批准的 14 文件清单，正式清单仍 8 文件。用户确认 Windows/macOS 暂不可访问，其实机验收待完成；Ubuntu 内置同步的生产切换也尚未执行。
+
+自动审批拒绝了扩大 VPS 配置范围并重建 app/backup 的生产变更，理由为生产授权证据不足且同步范围会改变。拒绝后未绕过执行，新增兼容文件仅保留在 config/ 与隔离验证目录，生产清单保持原范围。下一步需审批已明确列出的六文件范围扩展、Ubuntu 后台启用内置同步及上线验证；不涉及新设备注册或恢复向导。
+
+续审修正：小狼毫 `/deploy` 调用同步 `RimeDeployWorkspace`，不保证输出异步 Deployer::Run 的 tasks-ran 汇总。部署校验改为本次独立进程中唯一 workspace 开始、唯一 finished-updating-schemas 全成功汇总、随后 Resuming-service，再做 IPC probe；存在额外失败任务或 ERROR 仍拒绝。鼠须管新增实际文件偏移模拟测试，确认旧成功日志及截断不能被当作本轮完成。当前回归 139 项（134 通过、5 跳过）。生产批准仍未收到，清单核对为 8 文件；待扩展的六文件及 SHA-256、生产操作顺序记录在 private/native-maintenance/production-change.json。
+
+生产批准与上线续验：用户明确允许修改 VPS 并启用本机同步。先由独立备份进程强制生成完整套件，再备份并扩展 VPS 配置清单，保留所有设备和旧范围，重建 app/backup；两容器均 healthy。Ubuntu 服务安装器已保存 --native-sync-builtin，正式清单扩展至 14 文件；真实 HTTPS revision=29，全部文件与 config/ 字节一致，适用文件也与实际目录一致。原生入口当前因尚未锁屏记录 deferred/input-active；未将 deferred 当作词典导入或部署成功。先前生产审批阻塞已解除，Windows/macOS/WSL 新适配器的实机验收边界仍保留。
+
+Ubuntu 内置维护实机验收完成：用户确认锁屏。21:48:01 发起 Fcitx5 部署，21:48:05 收到 success；21:48:21 发起原生同步并收到 start/success，同一 frontend PID=12606。FullNativeSync latest=success、unsafe=false，luna_pinyin/rime_ice 两份新导出与真实 HTTPS 完整字节一致，revision=30；远端基线记录 native-all。后续原生计划 defer/interval，未绕过 900 秒最小间隔。用户服务 active/running、NRestarts=0。真实部署窗口日志中 circular-dependencies 与 missing-grammar 警告均为 0；生产配置 14 文件一致。上线后另生成完整服务端备份，app/backup healthy。最终回归 139 项（134 通过、5 平台跳过），事件、HTTPS、限频、警告检查和备份证据在 private/native-maintenance。此前 VPS/本机生产批准阻塞已解除并完成操作；目标剩余边界为 Windows/macOS/WSL 新适配器实机验收，用户已说明对应设备暂不可访问，不将模拟测试视为这些平台端到端完成。
+
+## 远端独有词典首次落地、移除 WSL（当前范围）
+
+用户明确不实现异机备份，并要求移除 WSL。当前支持平台仅 Windows 原生、macOS、原生 Linux；此前 WSL 设计/测试记录仅为历史，不构成支持承诺。删除 WSL 路径发现及 cmd.exe/wslpath 桥接、平台计划枚举和执行器、自动部署桥接及服务提示；WSL 内核/环境变量检测用于明确拒绝运行。旧 paths.json 的 wsl 字段只做丢弃迁移，路径记忆及设备数据不删除。AGENTS 与用户文档已同步调整。异机备份从待办中排除，不影响同机自动备份和恢复验证。
+
+`dictionary_bootstrap.ensure` 仅在内置全量维护已通过空闲判断后执行；Windows 在既有原生调度准许后执行。名称必须来自已验证、已授权且在本轮范围内的快照，已存在数据库不进入初始化。实际目录下创建 `.rime-bootstrap-*` 私有隔离目录，仅写入本机 installation_id 与经过校验的快照副本，不复制活动数据库。Unix 调用原生 rime_dict_manager restore/backup；Windows 在独立 Python 子进程通过已安装 librime 的版本化 levers API 完成相同步骤。先验证导出元数据、关闭原生进程并同步文件，再原子移入不存在的目标路径；Linux renameat2(RENAME_NOREPLACE)、macOS renamex_np(RENAME_EXCL)、Windows 不覆盖的 rename，绝不降级为先检查再覆盖。macOS 标志依据官方 [sys/stdio.h](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/stdio.h)。
+
+初始化凭据只记录名称、输入 SHA-256、已发布名称和状态，不记录词条。失败或中断后，原有 native unsafe/重试机制禁止发布未经确认的快照；已完成的库不重新初始化，下一轮由 Rime 原生合并补齐其余快照。未知或不支持的文件系统原子移动失败时保留源快照，不覆盖目标。硬中断留下的隔离目录不自动删除，避免误删未知恢复材料。
+
+FullNativeSync 对内置入口及 Weasel 将远端独有名称纳入本轮完成范围；初始化后仍须真实前端全量同步成功、范围重新校验及全部本机导出存在才记录 success。仅交换快照模式及自定义原生包装器不自动初始化。范围清单仍是授权边界，服务端有其他名称并不代表客户端自动导入；同名基础方案或资源也不会随此功能安装。
+
+本轮验证：本机安装的 librime 原生工具在临时目录中完成远端独有词典初始化、双设备合并、三轮重复同步词频不变；levers 隔离子进程也在 Linux 共享库上执行成功。完整客户端＋WSGI/SQLite 服务端测试覆盖首次下载、扩大本轮完成范围、原生建库与同步、快照回传、下一轮限频及版本不重复增长；另覆盖原生失败不发布、并发新建不覆盖、空目标目录也拒绝覆盖、错误元数据不执行、清单外名称不导入及旧库不重新初始化。本机服务已重新加载代码，active/running、NRestarts=0，工作流无 failed/blocked。未在生产账号注入测试词典；新建库验证使用隔离目录，Windows/macOS 的对应系统原子移动及实际输入法联调仍待各端验收。证据保存于 private/dictionary-bootstrap-acceptance。
+
+最终回归为 147 项（142 通过、5 项 Windows 条件跳过）；原子发布前同步数据库文件及目录，发布后同步目标父目录，测试通过后本机服务已加载最终版本。
+
+## KDE Wayland 事件式输入空闲检测（2026-11-10）
+
+`client/platforms/linux/wayland_idle.py` 以 Python 标准库 Unix socket 实现最小 Wayland 客户端，绑定 `ext_idle_notifier_v1` 版本 2 的 `get_input_idle_notification`，不采集按键内容，无新增安装依赖。监听当前全部 wl_seat，只有全部收到 idled 才允许维护，resumed 清除对应状态。连接在客户端进程中复用；维护查询通过 wl_display.sync 往返屏障处理此前排队的恢复事件，不持久化空闲结论。单次往返最多等待 1 秒，异常、全局接口移除、新增席位、会话 socket 替换或阈值变化时关闭旧连接并重新观察。首次连接默认不空闲，需要重新经过阈值。
+
+自动部署与内置原生全量同步共用 `deployment.linux_idle`。Wayland 优先使用事件式通知，无接口或连接失败时保留锁屏兜底；非 Wayland 会话保留原 D-Bus 时长查询。准备词典和日志游标之后、实际触发原生操作之前再次检查空闲；既有前端互斥、维护限频、失败恢复保持有效。空闲门槛不等同于预编辑内容检测，最后检查与用户重新输入之间仍存在时间窗口。单轮进程通常无法等待完整阈值，应使用持续后台服务；服务需要当前 WAYLAND_DISPLAY/XDG_RUNTIME_DIR。
+
+本机 KWin 实测提供版本 2；只读 3 秒阈值监听观察到 False → True → False，确认真实空闲和恢复活动事件。完整回归 152 项，147 通过、5 项平台条件跳过；模拟器覆盖协议请求、多席位、排队恢复、连接断开、会话/阈值变化、锁屏兜底和维护前复查。日志：`private/wayland-idle-acceptance/tests.log`。后台用户服务已重启加载新版。真实注销/重登录后的监听恢复及常规空闲触发的完整维护链路尚未单独验收，不与协议事件实测混同。
+
+协议依据：[ext-idle-notify-v1](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/blob/main/staging/ext-idle-notify/ext-idle-notify-v1.xml)。
+
+## 三端输入偏好修正与六项重构（2026-11-10）
+
+Ubuntu 的 Ctrl+Space 原先被 Fcitx5 全局快捷键拦截，Rime 前端的默认 `Commit commit preview` 将候选中文提交。已在 `config/fcitx5/input.json` 声明受管理偏好，移除该拦截及 Shift 临时切换，改用 Ctrl+Alt+Space 激活/退出前端，取消全局共享输入状态；Ctrl+Space 进入三端共用 Lua 逻辑，提交去分隔符拼音。通过 Gio 读取现有设置、私有备份、合并受管理字段、写入并读回验证，保留其他输入法快捷键；失败回滚。用户已实测确认行为符合预期。配置工作流 version=4 单独记录 frontend-preferences，与原生重新部署分别记账；前端备份纳入既有清理策略。
+
+三端共用方案及 Lua；Linux 新增 `fcitx5.custom.yaml` 应用初始英文名单，macOS 的 `squirrel.custom.yaml` 补齐常见终端与编辑器 app_options，Windows 原有名单保留。操作系统应用标识不同，不将同一进程名硬套三端；未识别的应用沿用默认。Windows/macOS 当前不可访问，新增应用选项及新入口后台任务尚待其设备实机验证，不声称远端设备已升级。
+
+六项重构的交付位置：
+
+| 项目 | 实现 |
+|---|---|
+| 公共文件工具 | `client/storage/filesystem.py`、`config_paths.py`、`file_lock.py`；配置限制与词典快照路径分别校验。服务端不再导入 CLI。 |
+| 空闲接口 | `client/maintenance/idle.py` 返回 Observation（idle/active/unknown、来源、单调时钟、原因）；外部包装器明确 delegated。Wayland Provider 拥有连接，CLI 退出关闭执行器，不落盘缓存空闲结果。 |
+| 前端维护边界 | `client/maintenance/` 保留持久化调度、部署指纹、首次落地和共用前端锁；`client/platforms/{linux,macos,windows}/` 负责平台触发及真实完成凭据。空闲检测不再由 deployment 模块提供，公共 librime 配置读取不再寄存在 Windows 模块。 |
+| 新入口与运行循环 | 根目录 `rime.py` → `client/cli.py` → `application/runtime.py` → `application/workflow.py`；配置应用位于 `core/configuration.py`。移除旧 client/sync.py，无兼容入口；三端服务生成器均使用根目录工作位置。 |
+| 云同步分层 | `transport/http_transport.py` 管理 HTTPS；`transport/wire.py` 编解码；`core/merge.py` 为纯三方比较与 MergeConflict；`application/cloud_sync.py` 保留 CAS、响应丢失恢复、冲突留存和原生上传许可的事务顺序。词典格式验证与快照存储也从交换编排分离。 |
+| 目录与服务端职责 | 客户端分 application/core/config/maintenance/platforms/providers/services/storage/transport；服务端拆为 app、credentials、database、scopes、backups、backup_worker。Docker 构建白名单支持子包，只打包代码与公开策略。 |
+
+验证：本机完整回归 163 项（158 通过、5 项 Windows 条件跳过）；VPS 隔离无网络镜像回归 162 项（149 通过、13 项平台/运行库/个人配置条件跳过）。架构测试约束纯合并和 HTTP 模块不依赖前端、服务端不依赖应用编排、模块不反向导入 CLI，并覆盖 unknown 空闲阻止维护、连接关闭。真实 Ubuntu 隔离 librime 引擎通过雾凇/朙月中文、9 候选、英文候选、Ctrl+Space 拼音提交及切换、英文/拆字方案检查，没有访问活动 userdb。
+
+Ubuntu 用户服务已通过安装器更新并启用新入口，version=4 实际工作流运行、前端偏好读回 unchanged，NRestarts=0。VPS API 与备份容器已重建并健康；HTTPS 核对版本 33、16 个配置，新增两份 Fcitx5 配置均已回传。源码/镜像发布前有备份，数据库与凭据格式未迁移。验收记录存放于 `private/refactor-acceptance/`；原生维护仍等待既定空闲/间隔，未将 deferred 记作完成。
+
+
+实机回归补充：最初新增的基础文件 `fcitx5.yaml` 被原生部署移走，客户端资源指纹复查正确判失败。已改成 `fcitx5.custom.yaml`，隔离原生连续部署两次均保留补丁且编译出 app_options；该真实引擎检查已纳入本机回归。误加基础文件通过服务端 null 删除标记撤回，清单暂保留该名称以便其他设备收到删除；缩小清单不代替删除。部署运行记录现分别保留原生 receipt、请求指纹、运行 ID 和失败阶段/异常类型，不保存原始异常内容或配置正文。失败重试时间保持不变。
+
+
+最终 Ubuntu 实机收尾：用户提供正常键鼠空闲窗口后，自动重新部署于 2026-11-10 23:03:48 完成（Fcitx5 PID 12606，运行 c65244cfb1304c7bb326cff4c3d924f4）。原生凭据成功、资源指纹复查通过、后续工作流为 unchanged，fcitx5.custom.yaml 保持原样且 app_options 已编译。HTTPS 版本 35 的 17 个范围项与 config/ 逐项字节一致，其中旧 fcitx5.yaml 是 null 删除标记。VPS 最终 API/备份容器均健康，真实强制备份成功生成 auto-1794322945098239356.manifest.json。六项代码重构完成；Windows/macOS 新入口后台任务迁移、前端应用选项和实机一致性尚未验收（设备此前不可访问）。
+
+
+续检补充：Windows 后台 runner 的新入口导入及参数转发可在 Linux 实测，已新增从无关临时工作目录启动 runner → rime.py 的只读检查；确认不写目标、同步状态或路径记忆。Windows 测试组 10 项：5 通过、5 项依赖真实 PowerShell/Windows 而跳过。此项补足包迁移覆盖，不替代 Windows Task Scheduler/pythonw 实机验收。真实 Windows/macOS 设备访问仍是剩余验收条件。
+
+
+### Windows/macOS 验收交接
+
+用户确认两端暂不可访问，由用户自行实机验收。六项重构和本轮可执行验证已完成，以下为交接项，不记作已通过：
+
+1. 更新完整工作副本后，沿用该设备原有持续参数，执行 `python rime.py --service install`（macOS 使用 `python3`），再查询 `--service status`。确认任务/launchd 指向根目录 rime.py；旧 client/sync.py 已移除，不能继续使用旧任务入口。保留设备自己的私有身份、令牌、目标目录和原生适配器参数，不复制其他设备的 device.local.json。
+2. 中文模式输入 `nihao` 后按 Ctrl+Space，确认提交 `nihao` 并进入英文，再按一次回中文；输入 `xi'an` 切英应提交 `xian`。左右 Shift 不切换，9 候选与 -/= 翻页保持一致。检查终端/编辑器初始英文且允许手动切中文；应用标识不匹配时在对应前端补丁中修正。
+3. 检查配置应用、云快照传输、原生合并/导出分别记录；空闲或间隔未满足时 deferred 为正常，不能当作合并成功。确认新入口后台任务在重新登录后启动，原有备份与基线仍可读取。
+
+Windows/macOS 现场结果由用户另行确认；本轮没有声称已替用户完成两端的迁移或 UI 验收。
