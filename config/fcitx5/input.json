@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "remove_trigger_keys": ["Control+space"],
+  "add_trigger_keys": ["Control+Alt+space"],
+  "remove_alt_trigger_keys": ["Shift_L", "Shift_R"],
+  "behavior": {"ActiveByDefault": "True", "ShareInputState": "No", "DefaultPageSize": "9"},
+  "rime": {"InputState": "No", "SwitchInputMethodBehavior": "Commit raw input"}
+}

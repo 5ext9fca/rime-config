@@ -1,0 +1,9 @@
+# 全拼拼写规则；展开上游 algebra_rime_ice，避免补丁回引自身方案形成循环。
+# 来源：本机雾凇 3.0.0；第三方词典刷新不更新此个人补丁。
+patch:
+  speller/algebra:
+  - xform/'//
+  - derive/^([nl])ue$/$1ve/
+  - derive/'([nl])ue$/'$1ve/
+  - derive/^([jqxy])u/$1v/
+  - derive/'([jqxy])u/'$1v/

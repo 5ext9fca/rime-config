@@ -1,3 +1,4 @@
+# 本项目维护的兼容副本：移除内部拼写规则回引，保留上游其他行为。
 # Rime schema settings
 # encoding: utf-8
 
@@ -35,7 +36,11 @@ speller:
   delimiter: " '"
   algebra:
     # 根据当前所用拼音方案选择 __include 的值
-    __include: algebra_rime_ice                       # 全拼
+    - xform/'//
+    - derive/^([nl])ue$/$1ve/
+    - derive/'([nl])ue$/'$1ve/
+    - derive/^([jqxy])u/$1v/
+    - derive/'([jqxy])u/'$1v/
     # __include: algebra_double_pinyin                # 自然码双拼
     # __include: algebra_double_pinyin_flypy          # 小鹤双拼
     # __include: algebra_double_pinyin_mspy           # 微软双拼

@@ -1,0 +1,35 @@
+# Fcitx5 application IDs; patch the system base without replacing it.
+patch:
+  "app_options/+":
+    "konsole": {ascii_mode: true}
+    "org.kde.konsole": {ascii_mode: true}
+    "gnome-terminal-server": {ascii_mode: true}
+    "org.gnome.Terminal": {ascii_mode: true}
+    "kitty": {ascii_mode: true}
+    "Alacritty": {ascii_mode: true}
+    "alacritty": {ascii_mode: true}
+    "org.wezfurlong.wezterm": {ascii_mode: true}
+    "wezterm": {ascii_mode: true}
+    "code": {ascii_mode: true}
+    "Code": {ascii_mode: true}
+    "code-insiders": {ascii_mode: true}
+    "codium": {ascii_mode: true}
+    "VSCodium": {ascii_mode: true}
+    "cursor": {ascii_mode: true}
+    "Cursor": {ascii_mode: true}
+    "windsurf": {ascii_mode: true}
+    "Windsurf": {ascii_mode: true}
+    "sublime_text": {ascii_mode: true}
+    "neovide": {ascii_mode: true}
+    "nvim-qt": {ascii_mode: true}
+    "gvim": {ascii_mode: true}
+    "Emacs": {ascii_mode: true}
+    "emacs": {ascii_mode: true}
+    "jetbrains-idea": {ascii_mode: true}
+    "jetbrains-pycharm": {ascii_mode: true}
+    "jetbrains-webstorm": {ascii_mode: true}
+    "jetbrains-clion": {ascii_mode: true}
+    "jetbrains-goland": {ascii_mode: true}
+    "jetbrains-rider": {ascii_mode: true}
+    "jetbrains-rustrover": {ascii_mode: true}
+    "jetbrains-datagrip": {ascii_mode: true}

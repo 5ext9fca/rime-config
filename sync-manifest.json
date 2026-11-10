@@ -9,7 +9,17 @@
       "rime_ice.custom.yaml",
       "custom_phrase.txt",
       "luna_quanpin.custom.yaml",
-      "lua/hx_preferences.lua"
+      "lua/hx_preferences.lua",
+      "fcitx5/theme.json",
+      "melt_eng.schema.yaml",
+      "radical_pinyin.schema.yaml",
+      "melt_eng.custom.yaml",
+      "radical_pinyin.custom.yaml",
+      "hx_english_algebra.yaml",
+      "grammar.yaml",
+      "fcitx5/input.json",
+      "fcitx5.yaml",
+      "fcitx5.custom.yaml"
     ]
   },
   "dictionaries": {
