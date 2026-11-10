@@ -7,9 +7,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-import scope
-import sync
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import client.core.scope as scope
+import client.core.configuration as sync
+import client.cli as cli
+import client.application.runtime as runtime
 
 
 class ScopeTests(unittest.TestCase):
@@ -72,10 +74,10 @@ class ScopeTests(unittest.TestCase):
                 self.save()
             else:
                 raise KeyboardInterrupt
-        with patch.object(sys, 'argv', argv), patch.object(sync, 'apply') as apply, \
-             patch('dictionaries.exchange') as exchange, patch.object(sync.time, 'sleep', side_effect=sleep), \
+        with patch.object(sys, 'argv', argv), patch('client.application.workflow.apply') as apply, \
+             patch('client.application.dictionaries.exchange') as exchange, patch.object(runtime.time, 'sleep', side_effect=sleep), \
              contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(sync.main(), 0)
+            self.assertEqual(cli.main(), 0)
             apply.assert_called_once()
             self.assertEqual(apply.call_args.kwargs['includes'], ['default.custom.yaml'])
             exchange.assert_called_once()

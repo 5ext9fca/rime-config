@@ -1,11 +1,17 @@
 name: rime-config
 services:
   app:
+    image: rime-config-app
     build:
       context: ..
       dockerfile: server/Dockerfile
       target: runtime
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -34,6 +40,46 @@ services:
     networks:
       caddy:
         aliases: [rime-sync]
+  backup:
+    image: rime-config-app
+    command: [python, -m, server.backup_worker]
+    restart: unless-stopped
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    volumes:
+      - type: bind
+        source: ./settings.json
+        target: /config/settings.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../sync-manifest.json
+        target: /config/sync-manifest.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - data:/data
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -m, server.backup_worker, --health]
+      interval: 60s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
 volumes:
   data:
 networks:

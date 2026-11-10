@@ -1,16 +1,19 @@
 {
   "version": 1,
-  "required_files": ["installation.yaml"],
+  "required_files": [
+    "installation.yaml"
+  ],
   "candidates": {
-    "windows": ["{windows_appdata}/Rime"],
-    "wsl": [
-      "{windows_appdata}/Rime",
-      "/mnt/c/Users/hx/AppData/Roaming/Rime"
+    "windows": [
+      "{windows_appdata}/Rime"
     ],
-    "macos": ["{home}/Library/Rime"],
+    "macos": [
+      "{home}/Library/Rime"
+    ],
     "linux": [
       "{xdg_config_home}/ibus/rime",
       "{xdg_config_home}/fcitx5/rime",
+      "{xdg_data_home}/fcitx5/rime",
       "{xdg_config_home}/fcitx/rime"
     ]
   }

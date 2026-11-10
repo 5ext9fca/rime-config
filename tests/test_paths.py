@@ -9,9 +9,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-import paths
-import sync
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import client.config.paths as paths
+import client.core.configuration as sync
+import client.cli as cli
+import client.application.runtime as runtime
 
 
 class PathTests(unittest.TestCase):
@@ -23,7 +25,7 @@ class PathTests(unittest.TestCase):
         self.target.mkdir()
         (self.target / 'installation.yaml').write_text('installation_id: device\n')
         self.config = {'version': 1, 'required_files': ['installation.yaml'],
-                       'candidates': {name: [str(self.target)] for name in ['wsl', 'macos', 'linux']}}
+                       'candidates': {name: [str(self.target)] for name in ['windows', 'macos', 'linux']}}
         self.memory = self.root / 'paths.local.json'
 
     def resolve(self, **kw):
@@ -68,16 +70,18 @@ class PathTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.resolve()
 
-    def test_platforms_and_wsl_fallback(self):
+    def test_platforms_reject_wsl_without_fallback(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(paths.platform_key('Linux','generic'), 'linux')
-            self.assertEqual(paths.platform_key('Linux','microsoft'), 'wsl')
             self.assertEqual(paths.platform_key('Darwin','test'), 'macos')
-        self.config['candidates']['wsl'].insert(0, '{windows_appdata}/Rime')
-        with patch.object(paths, 'windows_appdata', return_value=None):
-            self.assertEqual(paths.discover(self.config, 'wsl'), self.target)
-        with patch.object(paths, 'windows_appdata', return_value=str(self.root)):
-            self.assertEqual(paths.discover(self.config, 'wsl'), self.target)
+            with self.assertRaisesRegex(ValueError,'WSL'):paths.platform_key('Linux','microsoft')
+        with patch.dict(os.environ, {'WSL_DISTRO_NAME':'Ubuntu'}):
+            with self.assertRaisesRegex(ValueError,'WSL'):paths.platform_key('Linux','generic')
+        with self.assertRaises(ValueError):paths.discover(self.config,'wsl')
+        with self.assertRaises(ValueError):paths.resolve_target(self.config,self.memory,explicit=self.target,system='wsl')
+        from client.services.service import manage
+        with patch.dict(os.environ, {'WSL_DISTRO_NAME':'Ubuntu'}),patch('platform.system',return_value='Linux'):
+            with self.assertRaisesRegex(ValueError,'WSL'):manage('status',None,None)
 
     def test_templates_and_validation(self):
         self.config['candidates']['macos'] = ['{home}/Rime']
@@ -89,6 +93,19 @@ class PathTests(unittest.TestCase):
             path.write_text(json.dumps(self.config))
             with self.assertRaises(ValueError):
                 paths.load_paths(path)
+
+    def test_xdg_data_home_discovery(self):
+        self.config['candidates']['linux'] = ['{xdg_data_home}/Rime']
+        config_path = self.root / 'paths.json'
+        config_path.write_text(json.dumps(self.config))
+        config = paths.load_paths(config_path)
+        with patch.dict(os.environ, {'XDG_DATA_HOME': str(self.root)}):
+            self.assertEqual(paths.discover(config, 'linux'), self.target)
+        default = self.root / '.local/share/Rime'
+        default.mkdir(parents=True)
+        (default / 'installation.yaml').touch()
+        with patch.dict(os.environ, {}, clear=True), patch.object(Path, 'home', return_value=self.root):
+            self.assertEqual(paths.discover(config, 'linux'), default)
 
     def test_symlink_refused(self):
         alias = self.root / 'alias'
@@ -107,8 +124,8 @@ class PathTests(unittest.TestCase):
         argv = ['sync.py', '--discover-target', '--paths-config', str(config), '--paths-state', str(self.memory),
                 '--device-config', str(self.root / 'device.local.json')]
         with patch.object(sys, 'argv', argv + ['--dry-run']), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(sync.main(), 0)
+            self.assertEqual(cli.main(), 0)
         self.assertFalse(self.memory.exists())
         with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(sync.main(), 0)
+            self.assertEqual(cli.main(), 0)
         self.assertTrue(self.memory.exists())

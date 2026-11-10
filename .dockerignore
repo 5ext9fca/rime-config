@@ -14,3 +14,16 @@
 !remote.json
 !native-sync.json
 !paths.json
+
+!server/credentials.py
+!server/database.py
+!server/scopes.py
+!server/backups.py
+!automation.json
+
+!server/backup_worker.py
+
+!client/**/
+!client/**/*.py
+!client/**/*.ps1
+!rime.py

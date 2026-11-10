@@ -62,11 +62,11 @@ handle /rime/* {
 
 ## 客户端连接
 
-部署后，在每台客户端配置 `remote.json` 并执行 `python3 client/sync.py --init`，输入对应设备令牌。安装 ID 必须与服务端设备条目一致。具体步骤见 [启用多设备云同步](../README.md#启用多设备云同步)，冲突处理见 [用户指南](../README.md#遇到配置冲突)。
+部署后，在每台客户端配置 `remote.json` 并执行 `python3 rime.py --init`，输入对应设备令牌。安装 ID 必须与服务端设备条目一致。具体步骤见 [启用多设备云同步](../README.md#启用多设备云同步)，冲突处理见 [用户指南](../README.md#遇到配置冲突)。
 
 ## 维护与备份
 
-修改令牌、清单或设置后执行 `docker compose up -d --force-recreate app`。单文件 bind mount 可能保留旧 inode，不能只 restart。修改服务代码后执行 `docker compose up -d --build`。删除或更换某设备令牌可以撤销该设备后续读写权限，已下载的数据不会被远程擦除。
+修改令牌、清单或设置后执行 `docker compose up -d --force-recreate app backup`。单文件 bind mount 可能保留旧 inode，不能只 restart。修改服务代码后执行 `docker compose up -d --build`。删除或更换某设备令牌可以撤销该设备后续读写权限，已下载的数据不会被远程擦除。
 
 使用 SQLite backup API 制作一致备份，再复制到 VPS 的私有备份目录：
 
@@ -93,3 +93,60 @@ chmod 600 backup.sqlite3
 - 验收备份：`server/backups/accepted-20261110.sqlite3`，权限 `0600`；使用 SQLite backup API 生成并通过完整性检查。这是一次性验收备份，尚未配置定期备份任务。
 
 部署时发现并修复 Gunicorn 配置路径问题：`--config` 使用 `/app/server/gunicorn.conf.py`，避免在 `--chdir` 生效前解析相对路径失败。若通过自定义归档部署，请确保镜像内代码可由 UID 10001 读取；不要将私有设置的 `0600` 权限规则套用到全部程序源码。
+
+2026-11-10 Ubuntu 续验：已为用户 hx 添加独立 Ubuntu installation_id/令牌，并在备份设置后重建应用容器；保留 Windows/macOS 设备。Ubuntu 真实 HTTPS 配置与快照核对通过，客户端后台为 snapshots-only。隔离测试令牌在测试后撤销，测试用户数据清理前另做 SQLite 一致备份；未增加服务端同步范围或改动协议。Ubuntu 真实登录自动启动已通过；无人值守原生同步的边界见 [Ubuntu 验收记录](../PROJECT.md#ubuntu--linux-实机验收2026-11-10)。
+
+范围约定：不实现自动新设备注册和恢复向导。设备注册继续由维护者手动更新 `settings.json` 并重建容器；恢复继续按上述人工备份恢复流程执行，并处理客户端版本回退与基线核对。
+
+## 自动令牌、词典范围与保留策略
+
+新版保留原状态接口，增加认证的 `POST /rime/v1/token/refresh` 和 `POST /rime/v1/scope/dictionaries`。没有新设备注册接口。客户端令牌轮换后，`settings.json` 中的原令牌只作为注册根；日常有效令牌哈希存在 SQLite。删除设备或更换原令牌可撤销其派生令牌，修改后仍须重建容器。
+
+`settings.json` 新增可选项（旧配置保持自动扩展/备份关闭）：
+
+```json
+{
+  "auto_expand_dictionaries": true,
+  "max_dictionaries": 128,
+  "backups": {
+    "enabled": true,
+    "interval_seconds": 86400,
+    "retention_days": 30,
+    "keep_minimum": 7
+  }
+}
+```
+
+词典增量范围按用户存入 SQLite，只增不减，正常扩展不修改 bind mount、不需重建容器。静态配置文件授权仍由 `sync-manifest.json` 维护；本轮增加 `fcitx5/theme.json` 文本资源包。禁用词典或关闭自动扩展会阻止扩展，已有数据保留。
+
+每日自动备份由下述独立 `backup` 服务生成，位于卷内 `/data/backups/`。只有新备份完整性检查通过后，才按 30 天、至少 7 套清理已完成且校验通过的备份。历史 `accepted-*`、无完成清单的旧单文件备份、升级设置/代码归档及宿主 `server/backups/` 保留，不纳入自动删除；未增加异机备份，也未执行破坏性恢复演练。
+
+Gunicorn 应用日志改为 `/data/logs/rime-日期-编号.log`，每文件约 10 MiB，过期 30 天清理；查看可用 `docker compose exec app sh -c 'tail -n 80 /data/logs/rime-*.log'`。Docker 外层启动日志限 3×10 MiB。SQLite 新增的身份和范围表必须与状态表一起备份，不能只恢复 `states` 表。2026-11-10 已部署并完成 Ubuntu 与真实 HTTPS 联调；此前文档中“未配置周期备份”为历史状态。
+
+## 独立备份服务（当前实现）
+
+当前 Compose 增加 `backup` 容器，自动备份已从 HTTP 请求/健康检查中移出。首次部署或升级时：
+
+```bash
+docker compose config --quiet
+docker compose up -d --build app backup
+docker compose ps
+docker compose logs --tail=20 backup
+```
+
+它每 60 秒检查 `settings.json` 的 `backups` 策略，默认每天备份一次；运行在无网络容器中，共用 `/data` 卷。修改设备/备份设置或范围清单后同时重建 app 和 backup，防止单文件 bind mount 保留旧 inode。停用备份可设 `backups.enabled=false` 并重建；已有备份保留。
+
+新格式每套四个文件：`auto-<编号>.sqlite3`、`.settings.json`、`.scope.json`、`.manifest.json`。设置包含设备初始令牌，数据库包含派生令牌哈希与个人数据，均为 0600；不要提交或公开这些文件。完成清单保存文件 SHA-256，SQLite 副本先通过完整性检查。只有有完成清单且成员校验通过的套件才参与清理，超过 30 天并且不在最新 7 套内才删除。旧单文件自动备份、手工/升级备份和不完整/损坏套件保留。
+
+```bash
+# 手动额外触发，仍使用同一并发锁和保留策略
+docker compose exec backup python -m server.backup_worker --once --force
+# 检查定时器心跳（退出码 0 表示健康）
+docker compose exec backup python -m server.backup_worker --health
+```
+
+无需请求 API 来触发备份；`/data/backup-worker.json` 记录检查及成功时间。进程中断后租约最多 10 分钟到期，随后重试；备份错误与 HTTP 服务健康分开记录。恢复时应将数据库及对应设置、范围一同核对，在隔离位置先验证；本轮自动测试和 VPS 验证使用副本，不覆盖生产卷。仍未提供恢复向导，也未增加异机备份。
+
+2026-11-10 内置维护上线续验：按用户批准将六个方案兼容文件加入配置授权范围，现为 14 个文件；更新前后均生成完整备份，重建 app/backup 后两者 healthy。Ubuntu 已启用 native-all，真实锁屏触发合并导出并回传两份快照，验收版本 30。新范围不包含第三方词典文件，不改变设备身份及用户隔离。
+
+范围更新：按用户要求不实现异机备份，不再将其列为后续待办。客户端远端独有词典初始化在本地完成，不改变服务端协议、设备权限或词典授权范围；WSL 客户端支持已移除，旧设备数据保留。

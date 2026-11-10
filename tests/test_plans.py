@@ -8,11 +8,13 @@ import unittest
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'client'))
-import plans
-import sync
-from native_sync import DEFAULT_SCHEDULE
-from platform_execution import get_executor, WindowsExecutor, UnixExecutor
+sys.path.insert(0, str(ROOT))
+import client.core.plans as plans
+import client.core.configuration as sync
+import client.cli as cli
+import client.application.runtime as runtime
+from client.maintenance.native_sync import DEFAULT_SCHEDULE
+from client.platforms.platform_execution import get_executor, WindowsExecutor, UnixExecutor
 
 
 class PlanTests(unittest.TestCase):
@@ -22,7 +24,7 @@ class PlanTests(unittest.TestCase):
 
     def test_cross_platform_configuration_and_native_decisions_match(self):
         expected = None
-        for platform in ('windows','wsl','linux','macos'):
+        for platform in ('windows','linux','macos'):
             files=plans.configuration(platform, {'a':b'new','b':b'same','d':b'create'},
                                       {'a':b'old','b':b'same','c':b'delete'}, ['a','b','c'])
             actual=[(s['id'],s['action']) for s in files['steps']]
@@ -35,7 +37,7 @@ class PlanTests(unittest.TestCase):
     def test_unknown_contracts_rejected_before_dispatch(self):
         handlers={k:Mock(return_value={'status':'success','reason':'test'}) for k in plans.STAGES}
         cases=[]
-        for field,value in [('version',2),('version',True),('kind','unknown'),('platform','unknown')]:
+        for field,value in [('version',2),('version',True),('kind','unknown'),('platform','unknown'),('platform','wsl')]:
             plan=self.workflow();plan[field]=value;cases.append(plan)
         plan=self.workflow();plan['steps'][0]['action']='shell';cases.append(plan)
         plan=self.workflow();plan['steps'][0]['requires']=['configuration-apply'];cases.append(plan)
@@ -63,16 +65,17 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(published[-1]['steps'][-1]['status'],'blocked')
 
     def test_platform_dispatch_is_explicit_and_preserves_service_arguments(self):
+        with self.assertRaises(ValueError):get_executor('wsl')
         self.assertIsInstance(get_executor('windows'),WindowsExecutor)
-        for name in ('wsl','linux','macos'):
+        for name in ('linux','macos'):
             self.assertIsInstance(get_executor(name),UnixExecutor)
-        with patch('windows_service.manage_windows',return_value=0) as win:
+        with patch('client.platforms.windows.windows_service.manage_windows',return_value=0) as win:
             get_executor('windows').service('status',None,None)
             win.assert_called_once_with('status',None,None,None)
-        with patch('unix_service.manage_unix',return_value=0) as unix:
+        with patch('client.services.unix_service.manage_unix',return_value=0) as unix:
             get_executor('macos').service('status',None,None)
             unix.assert_called_once_with('status',None,None,None,'Darwin')
-        with self.assertRaises(ValueError):get_executor('linux').idle_seconds('WeaselDeployer.exe')
+        self.assertEqual(get_executor('linux').observe_idle(30,delegated=True).state,'delegated')
 
     def test_configuration_plan_is_read_only_and_rechecks_stale_target(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -99,7 +102,7 @@ class PlanTests(unittest.TestCase):
             manifest.write_text(json.dumps({'version':1,'configuration':{'enabled':True,'files':['weasel.custom.yaml']},
                                             'dictionaries':{'enabled':True,'names':['old']}}))
             (target/'new.userdb').mkdir()
-            cmd=[sys.executable,str(ROOT/'client/sync.py'),'--plan-json','--target',str(target),
+            cmd=[sys.executable,str(ROOT/'rime.py'),'--plan-json','--target',str(target),
                  '--device-config',str(identity),'--remote-config',str(remote),'--sync-config',str(manifest),
                  '--paths-state',str(root/'paths.local.json'),'--state-dir',str(root/'state'),
                  '--native-sync-all-command',json.dumps([sys.executable,'-c','raise SystemExit(99)'])]

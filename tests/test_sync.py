@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('sync', Path(__file__).resolve().parents[1] / 'client/sync.py')
-sync = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(sync)
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+import client.core.configuration as sync
 
 
 class SyncTests(unittest.TestCase):

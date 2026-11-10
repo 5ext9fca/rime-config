@@ -10,10 +10,11 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / 'client'))
+sys.path.insert(0, str(ROOT))
 from server.app import create_app
-import remote
-from sync import apply
+import client.application.cloud_sync as remote
+import client.transport.http_transport as http_transport
+from client.core.configuration import apply
 
 
 def encoded(text):
@@ -287,10 +288,39 @@ class RemoteTests(ServerFixture):
             self.assertFalse((self.root / 'b/rime' / name).exists())
 
     def test_dry_run_and_transport_enforce_https_and_refuse_redirect(self):
-        self.assertIsNone(remote.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://other.test'))
+        self.assertIsNone(http_transport.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://other.test'))
         path = self.root / 'remote.json'
         for url in ('http://example.test/rime/v1/state', 'https://token@example.test/rime/v1/state', 'https://example.test/rime/v1/state?token=x'):
             config = dict(self.config, url=url)
             path.write_text(json.dumps(config))
             with self.assertRaises(ValueError):
-                remote.load_remote(path)
+                http_transport.load_remote(path)
+
+    @unittest.skipUnless(sys.platform.startswith('linux') and __import__('shutil').which('rime_dict_manager'),'Requires installed librime tools')
+    def test_remote_only_dictionary_first_landing_and_upload(self):
+        import subprocess,shutil
+        from client.maintenance.native_sync import FullNativeSync
+        from client.maintenance.dictionary_bootstrap import ensure
+        self.assertEqual(self.upload(dictionaries={'rime_ice':remote.encode(snapshot('a'))})[0],200)
+        root=self.root/'b';target=root/'rime';target.mkdir();(target/'installation.yaml').write_text('installation_id: b\n')
+        native=FullNativeSync(target,target/'sync','b',self.root/'scope.json',root/'native',builtin=True)
+        class RealIsolatedExecutor:
+            platform='linux'
+            def observe_idle(self,threshold,delegated=False):
+                from client.maintenance.idle import Observation
+                return Observation('idle','isolated-test',0)
+            def native(self,**context):
+                assert context['names']=={'rime_ice'},'Completion scope must include the new remote-only name'
+                ensure(context['target'],context['sync_dir'],context['device'],context['names'],context['session'],'linux')
+                subprocess.run([shutil.which('rime_dict_manager'),'--sync'],cwd=context['target'],check=True,capture_output=True)
+                return {'status':'success','names':sorted(context['names'])}
+        native.executor=RealIsolatedExecutor()
+        self.run_sync('b',native=native)
+        self.assertTrue((target/'rime_ice.userdb').is_dir())
+        self.assertEqual(native.application['status'],'success')
+        exported=(target/'sync/b/rime_ice.userdb.txt').read_bytes()
+        self.assertEqual(remote.decode(self.call(device='b')[1]['dictionaries']['b']['rime_ice']),exported)
+        version=self.call(device='b')[1]['revision']
+        self.run_sync('b',native=native)
+        self.assertEqual(native.application['reason'],'interval')
+        self.assertEqual(self.call(device='b')[1]['revision'],version)

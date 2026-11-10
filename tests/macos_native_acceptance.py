@@ -10,9 +10,9 @@ import subprocess
 import sys
 import tempfile
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-from dictionaries import exchange, validate_snapshot, checked
-from sync import safe_path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from client.application.dictionaries import exchange, validate_snapshot, checked
+from client.storage.config_paths import safe_path
 
 
 def worker(manager, user, dictionary):

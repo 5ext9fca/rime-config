@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import subprocess
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-import dictionaries as d
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import client.application.dictionaries as d
 
 
 def snapshot(device, word='测试'):

@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-import third_party as t
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import client.providers.third_party as t
 
 
 def blob(data):

@@ -11,15 +11,44 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-import file_lock
-import paths
-import service
-import sync
-import windows_service
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import client.storage.file_lock as file_lock
+import client.config.paths as paths
+import client.services.service as service
+import client.core.configuration as sync
+import client.cli as cli
+import client.application.runtime as runtime
+import client.platforms.windows.windows_service as windows_service
 
 
 class PortableWindowsTests(unittest.TestCase):
+    @unittest.skipUnless((Path(__file__).resolve().parents[1]/'config/default.custom.yaml').exists(),
+                         'Personal configuration excluded from server image')
+    def test_runner_imports_new_entry_from_unrelated_working_directory(self):
+        # The runner's import and argv forwarding do not require pythonw or
+        # Task Scheduler, so exercise them on every host instead of skipping.
+        project=Path(__file__).resolve().parents[1]
+        runner=project/'client/platforms/windows/windows_runner.py'
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            target=root/'Rime';target.mkdir()
+            remote=root/'remote.json'
+            remote.write_text(json.dumps({'enabled':False,'url':'https://example.test/rime/v1/state',
+                'interval_seconds':60,'retry_seconds':30,'timeout_seconds':5}))
+            command=[sys.executable,str(runner),str(project/'rime.py'),'--dry-run',
+                '--target',str(target),'--device-config',str(root/'device.local.json'),
+                '--paths-state',str(root/'paths.local.json'),'--state-dir',str(root/'state'),
+                '--remote-config',str(remote)]
+            result=subprocess.run(command,cwd=root,env={**os.environ,'LOCALAPPDATA':str(root)},
+                capture_output=True,text=True,timeout=30)
+            log=(root/'rime-config/logs/service.log').read_text(encoding='utf-8')
+            self.assertEqual(result.returncode,0,log+result.stderr)
+            self.assertIn('配置源:',log)
+            self.assertFalse((root/'state').exists())
+            self.assertFalse((root/'paths.local.json').exists())
+            self.assertEqual(list(target.iterdir()),[])
+
+
     def test_windows_discovery_and_legacy_config(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -31,7 +60,9 @@ class PortableWindowsTests(unittest.TestCase):
                                          'candidates': dict(wsl=[], macos=[], linux=[])}))
             with patch.dict(os.environ, {'APPDATA': tmp}):
                 self.assertEqual(paths.platform_key('Windows', 'test'), 'windows')
-                self.assertEqual(paths.discover(paths.load_paths(config), 'windows'), target)
+                migrated=paths.load_paths(config)
+                self.assertNotIn('wsl',migrated['candidates'])
+                self.assertEqual(paths.discover(migrated, 'windows'), target)
 
     def test_portable_scope_and_windows_aliases(self):
         self.assertEqual(sync.relative_name('lua/中文.lua').as_posix(), 'lua/中文.lua')
@@ -44,9 +75,9 @@ class PortableWindowsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'lock'
             code = ('import sys; sys.path.insert(0, sys.argv[1]); '
-                    'from file_lock import lock_exclusive; '
+                    'from client.storage.file_lock import lock_exclusive; '
                     'f=open(sys.argv[2], "a"); lock_exclusive(f)')
-            argv = [sys.executable, '-c', code, str(Path(file_lock.__file__).parent), str(path)]
+            argv = [sys.executable, '-c', code, str(Path(__file__).resolve().parents[1]), str(path)]
             with path.open('a') as stream:
                 file_lock.lock_exclusive(stream)
                 self.assertNotEqual(subprocess.run(argv, capture_output=True).returncode, 0)
@@ -55,7 +86,7 @@ class PortableWindowsTests(unittest.TestCase):
     def test_service_preview_precheck_and_payload(self):
         args = argparse.Namespace(interval=5, third_party_only=False, dry_run=True,
                                   device_config=Path('device.local.json'))
-        script = Path(sync.__file__).resolve()
+        script = Path(__file__).resolve().parents[1]/'rime.py'
         with patch.object(Path, 'is_file', return_value=True), \
                 patch.object(service, 'run') as precheck, \
                 patch.object(windows_service.subprocess, 'run') as manager, \
@@ -77,7 +108,7 @@ class PortableWindowsTests(unittest.TestCase):
             self.assertIn('windows_runner.py', payload['arguments'])
             self.assertIn('--watch', payload['arguments'])
             self.assertNotIn('--token-stdin', payload['arguments'])
-            self.assertEqual(payload['directory'], str(script.parent.parent))
+            self.assertEqual(payload['directory'], str(script.parent))
 
 
 @unittest.skipUnless(os.name == 'nt', '需要 Windows PowerShell')
@@ -97,7 +128,7 @@ class NativeWindowsTests(unittest.TestCase):
             try:
                 with self.assertRaises(ValueError):
                     sync.safe_path(junction, 'sentinel.txt')
-                from dictionaries import checked
+                from client.application.dictionaries import checked
                 with self.assertRaises(ValueError):
                     checked(junction / 'sentinel.txt')
                 self.assertEqual(sentinel.read_text(), 'unchanged')
@@ -111,7 +142,7 @@ class NativeWindowsTests(unittest.TestCase):
             target = root / '中文 Rime'
             target.mkdir()
             (target / 'installation.yaml').write_text('installation_id: test')
-            script = Path(sync.__file__).resolve()
+            script = Path(__file__).resolve().parents[1]/'rime.py'
             remote = root / 'remote.json'
             remote.write_text(json.dumps({'enabled': False, 'url': 'https://example.test/rime/v1/state',
                                           'interval_seconds': 60, 'retry_seconds': 30, 'timeout_seconds': 5}))
@@ -125,7 +156,7 @@ class NativeWindowsTests(unittest.TestCase):
             self.assertIn('pythonw.exe', result.stdout)
             self.assertEqual(before, sorted(str(p.relative_to(root)) for p in root.rglob('*')))
             pythonw = Path(sys.executable).with_name('pythonw.exe')
-            runner = script.with_name('windows_runner.py')
+            runner = script.parent/'client/platforms/windows/windows_runner.py'
             result = subprocess.run([str(pythonw), str(runner), *argv],
                                     env={**os.environ, 'LOCALAPPDATA': tmp}, timeout=30)
             self.assertEqual(result.returncode, 0)

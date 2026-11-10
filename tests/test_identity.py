@@ -9,10 +9,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-import identity
-import remote
-import sync
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import client.config.identity as identity
+import client.application.cloud_sync as remote
+import client.transport.http_transport as http_transport
+import client.core.configuration as sync
+import client.cli as cli
+import client.application.runtime as runtime
 
 
 class IdentityTests(unittest.TestCase):
@@ -73,9 +76,9 @@ class IdentityTests(unittest.TestCase):
     def test_cli_init_is_offline_and_exits_before_sync(self):
         argv = ['sync.py', '--init', '--token-stdin', '--device-config', str(self.path), '--target', str(self.target)]
         with patch.object(sys, 'argv', argv), patch.object(sys, 'stdin', io.StringIO(self.token + '\n')), \
-             patch.object(remote, 'synchronize') as synchronize, patch.object(sync, 'apply') as apply, \
+             patch.object(remote, 'synchronize') as synchronize, patch('client.application.workflow.apply') as apply, \
              contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(sync.main(), 0)
+            self.assertEqual(cli.main(), 0)
             synchronize.assert_not_called()
             apply.assert_not_called()
         self.assertEqual(identity.load_identity(self.path)['token'], self.token)
@@ -89,8 +92,8 @@ class IdentityTests(unittest.TestCase):
         argv = ['sync.py', '--device-config', str(self.path), '--remote-config', str(remote_path),
                 '--state-dir', str(self.root / 'state'), '--dry-run']
         with patch.object(sys, 'argv', argv), patch.object(remote, 'synchronize', return_value='planned') as synchronize, \
-             patch.object(sync, 'apply') as apply, patch('third_party.refresh'), contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(sync.main(), 0)
+             patch('client.application.workflow.apply') as apply, patch('client.providers.third_party.refresh'), patch('client.platforms.linux.theme.apply', return_value='planned'), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(), 0)
             args = synchronize.call_args.args
             self.assertEqual(args[0]['token'], self.token)
             self.assertEqual(args[4], 'test-device')
@@ -105,6 +108,6 @@ class IdentityTests(unittest.TestCase):
         with patch.dict(os.environ, {'TEST_RIME_TOKEN': 'old-token-' + 'y' * 40}), \
              patch.object(remote.urllib.request, 'build_opener') as opener:
             opener.return_value.open.return_value = response
-            remote.request(config, 'GET')
+            http_transport.request(config, 'GET')
             sent = opener.return_value.open.call_args.args[0]
             self.assertEqual(sent.get_header('Authorization'), 'Bearer ' + self.token)

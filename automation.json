@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "linux_theme": true,
+  "deployment": {
+    "enabled": true,
+    "idle_seconds": 30,
+    "retry_seconds": 900,
+    "commands": {}
+  },
+  "logs": {
+    "enabled": true,
+    "retention_days": 30,
+    "max_file_bytes": 10485760
+  },
+  "backups": {
+    "enabled": true,
+    "retention_days": 30,
+    "keep_minimum": 7,
+    "interval_seconds": 86400
+  }
+}

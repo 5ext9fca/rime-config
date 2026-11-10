@@ -3,14 +3,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY server/requirements.txt /app/server/requirements.txt
 RUN pip install --no-cache-dir -r /app/server/requirements.txt \
-    && mkdir /data && chown 10001:10001 /data
+    && mkdir /data /app/config && chown 10001:10001 /data
 COPY client/ /app/client/
-COPY server/app.py server/gunicorn.conf.py /app/server/
+COPY server/*.py /app/server/
 USER 10001:10001
 
 FROM base AS test
 COPY tests/ /app/tests/
-COPY sync-manifest.json third-party.json remote.json paths.json native-sync.json /app/
+COPY rime.py /app/rime.py
+COPY sync-manifest.json third-party.json remote.json paths.json native-sync.json automation.json /app/
 CMD ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
 
 FROM base AS runtime

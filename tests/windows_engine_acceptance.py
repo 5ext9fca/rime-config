@@ -6,7 +6,8 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from windows_native_acceptance import Traits, function
+from windows_native_acceptance import Traits
+from client.platforms.rime_api import function
 
 
 class Composition(C.Structure):
@@ -35,6 +36,7 @@ def main():
     parser.add_argument('--dll', type=Path, required=True)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--workspace', type=Path, required=True)
+    parser.add_argument('--shared-data', type=Path, help='Unix librime 共享资源目录；省略时使用小狼毫 data')
     args = parser.parse_args()
     root = Path(tempfile.mkdtemp(prefix='engine-acceptance-', dir=args.workspace)).resolve()
     user = root / 'user'
@@ -50,8 +52,8 @@ def main():
     lib = C.CDLL(str(args.dll.resolve()))
     traits = Traits()
     traits.data_size = C.sizeof(Traits) - 4
-    traits.shared_data_dir = str(args.dll.parent / 'data').encode('utf-8')
-    traits.prebuilt_data_dir = traits.shared_data_dir
+    traits.shared_data_dir = str(args.shared_data or args.dll.parent / 'data').encode('utf-8')
+    traits.prebuilt_data_dir = str(args.shared_data / 'build').encode('utf-8') if args.shared_data else traits.shared_data_dir
     traits.user_data_dir = str(user).encode('utf-8')
     traits.app_name = b'rime.engine_acceptance'
     traits.log_dir = str(logs).encode('utf-8')

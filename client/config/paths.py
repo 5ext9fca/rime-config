@@ -1,0 +1,124 @@
+"""Configurable first discovery and private, per-platform target memory."""
+import json
+import os
+from pathlib import Path
+import platform
+import string
+
+from client.storage.filesystem import atomic_write, is_link
+from client.storage.config_paths import safe_path, windows_reserved
+
+
+def platform_key(system=None, release=None):
+    system = system or platform.system()
+    release = release or platform.release()
+    if system == 'Windows':
+        return 'windows'
+    if system == 'Darwin':
+        return 'macos'
+    if system == 'Linux':
+        if 'microsoft' in release.lower() or os.environ.get('WSL_DISTRO_NAME'):
+            raise ValueError('WSL 支持已移除；请使用 Windows 原生客户端')
+        return 'linux'
+    raise ValueError('仅支持 Windows、macOS、原生 Linux')
+
+
+def load_paths(path):
+    config = json.loads(Path(path).read_text(encoding='utf-8'))
+    if not isinstance(config, dict) or set(config) != {'version', 'required_files', 'candidates'} or type(config['version']) is not int or config['version'] != 1:
+        raise ValueError('paths.json 需要 version=1、required_files、candidates')
+    if not isinstance(config['required_files'], list) or not all(isinstance(v, str) and v for v in config['required_files']):
+        raise ValueError('required_files 必须是相对文件名列表')
+    for name in config['required_files']:
+        # installation.yaml is a discovery marker, not a managed file.
+        p = Path(name)
+        if p.is_absolute() or '..' in p.parts or p.as_posix() != name or p.drive or ":" in name or "\\" in name or not p.parts:
+            raise ValueError('发现标记路径无效')
+        if any(part.endswith((' ', '.')) or windows_reserved(part)
+               or any(ord(c) < 32 or c in '<>"|?*' for c in part) for part in p.parts):
+            raise ValueError('发现标记路径无效')
+    if not isinstance(config['candidates'], dict):
+        raise ValueError('candidates 必须是平台路径映射')
+    # Migrate an old shared configuration without retaining WSL discovery.
+    config['candidates'].pop('wsl',None)
+    if set(config['candidates']) not in ({'macos','linux'},{'windows','macos','linux'}):
+        raise ValueError('candidates 必须配置 macos、linux，可另加 windows')
+    config['candidates'].setdefault('windows',['{windows_appdata}/Rime'])
+    allowed = {'home', 'xdg_config_home', 'xdg_data_home', 'windows_appdata'}
+    for entries in config['candidates'].values():
+        if not isinstance(entries, list) or not all(isinstance(v, str) and v for v in entries):
+            raise ValueError('候选路径必须是字符串列表')
+        for value in entries:
+            for _, field, spec, conversion in string.Formatter().parse(value):
+                if field is not None and (field not in allowed or spec or conversion):
+                    raise ValueError('路径模板仅支持 home、xdg_config_home、xdg_data_home、windows_appdata')
+    return config
+
+
+def existing_target(value):
+    path = Path(os.path.abspath(Path(value).expanduser()))
+    safe_path(path)
+    if not path.is_dir():
+        raise ValueError(f'实际配置目录不存在或不可访问: {path}；检查挂载，或使用 --rediscover-target/--target')
+    return path
+
+
+def discover(config, system=None):
+    system = system or platform_key()
+    if system not in ('windows','macos','linux'):raise ValueError('Unsupported platform: '+system)
+    fields = {'xdg_data_home': os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share')), 'home': str(Path.home()), 'xdg_config_home': os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))}
+    found = []
+    for template in config['candidates'][system]:
+        if '{windows_appdata}' in template and 'windows_appdata' not in fields:
+            fields['windows_appdata'] = (os.environ.get('APPDATA') if system == 'windows' else None)
+        if '{windows_appdata}' in template and not fields.get('windows_appdata'):
+            continue
+        path = Path(template.format(**fields)).expanduser()
+        if not path.is_absolute():
+            raise ValueError(f'候选路径展开后必须是绝对路径: {path}')
+        if not path.is_dir():
+            continue
+        safe_path(path)
+        if all((path / name).is_file() and not is_link(path / name) for name in config['required_files']):
+            if path not in found:
+                found.append(path)
+    if not found:
+        raise ValueError('未发现 Rime 配置目录，请编辑 paths.json 或用 --target 指定现有目录')
+    if len(found) > 1:
+        raise ValueError('发现多个 Rime 目录，请用 --target 选择：' + ', '.join(map(str, found)))
+    return found[0]
+
+
+def resolve_target(config, memory_path, explicit=None, identity_target=None, rediscover=False, system=None):
+    system = system or platform_key()
+    if system not in ('windows','macos','linux'):raise ValueError('Unsupported platform: '+system)
+    memory_path = Path(os.path.abspath(Path(memory_path).expanduser()))
+    safe_path(memory_path.parent, memory_path.name)
+    memory = json.loads(memory_path.read_text(encoding='utf-8')) if memory_path.exists() else {'version': 1, 'targets': {}}
+    if not isinstance(memory, dict) or set(memory) != {'version', 'targets'} or memory['version'] != 1 or not isinstance(memory['targets'], dict):
+        raise ValueError('路径记忆文件无效')
+    if explicit is not None:
+        return existing_target(explicit), 'explicit'
+    if not rediscover:
+        if system in memory['targets']:
+            value = memory['targets'][system]
+            if not isinstance(value, str) or not Path(value).is_absolute():
+                raise ValueError('记忆路径必须是绝对路径')
+            return existing_target(value), 'remembered'
+        if identity_target:
+            return existing_target(identity_target), 'identity'
+    return discover(config, system), 'discovered'
+
+
+def remember_target(memory_path, target, system=None):
+    system = system or platform_key()
+    if system not in ('windows','macos','linux'):raise ValueError('Unsupported platform: '+system)
+    memory_path = Path(os.path.abspath(Path(memory_path).expanduser()))
+    safe_path(memory_path.parent, memory_path.name)
+    data = json.loads(memory_path.read_text(encoding='utf-8')) if memory_path.exists() else {'version': 1, 'targets': {}}
+    if data.get('version') != 1 or not isinstance(data.get('targets'), dict):
+        raise ValueError('路径记忆文件无效')
+    if data['targets'].get(system) == str(target):
+        return
+    data['targets'][system] = str(target)
+    atomic_write(memory_path, (json.dumps(data, ensure_ascii=False, indent=2) + '\n').encode())

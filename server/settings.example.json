@@ -9,5 +9,13 @@
       "device": "09ad77e5-8a8d-45b8-97f3-b2893bd56e5b",
       "token": "REPLACE_WITH_A_RANDOM_DEVICE_TOKEN"
     }
-  ]
+  ],
+  "auto_expand_dictionaries": true,
+  "max_dictionaries": 128,
+  "backups": {
+    "enabled": true,
+    "interval_seconds": 86400,
+    "retention_days": 30,
+    "keep_minimum": 7
+  }
 }

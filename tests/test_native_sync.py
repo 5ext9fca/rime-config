@@ -7,10 +7,10 @@ import time
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-from native_sync import FullNativeSync, native_names
-from weasel_sync import verify_log
-from dictionaries import exchange
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from client.maintenance.native_sync import FullNativeSync, native_names
+from client.platforms.windows.weasel_sync import verify_log
+from client.application.dictionaries import exchange
 
 
 def snapshot(device, name):
@@ -78,11 +78,11 @@ class NativeSyncTests(unittest.TestCase):
             calls.append(args)
             env=kw['env']
             Path(env['RIME_SYNC_RECEIPT']).write_text(json.dumps({'status':'success','names':['one','two']}))
-        with patch('native_sync.subprocess.run',side_effect=execute):
+        with patch('client.maintenance.native_sync.subprocess.run',side_effect=execute):
             exchange(self.sync,self.root/'store','local',self.root/'exchange',names=names,native=self.native)
         self.assertEqual(len(calls),1)
         self.assertEqual(json.loads((self.native.state/'latest.json').read_text())['status'],'success')
-        with patch('native_sync.subprocess.run'), patch('native_sync.time.time', return_value=time.time() + 4000):
+        with patch('client.maintenance.native_sync.subprocess.run'), patch('client.maintenance.native_sync.time.time', return_value=time.time() + 4000):
             with self.assertRaises(FileNotFoundError): self.native.run(names)
         self.assertEqual(json.loads((self.native.state/'latest.json').read_text())['status'],'failed')
 
@@ -92,7 +92,7 @@ class NativeSyncTests(unittest.TestCase):
         names=self.native.prepare()['dictionaries']['names']
         def execute(*args,**kw):
             Path(kw['env']['RIME_SYNC_RECEIPT']).write_text(json.dumps({'status':'success','names':[]}))
-        with patch('native_sync.subprocess.run',side_effect=execute):
+        with patch('client.maintenance.native_sync.subprocess.run',side_effect=execute):
             with self.assertRaisesRegex(ValueError,'尚无本机用户数据库'): self.native.run(names)
 
     def test_weasel_requires_native_task_success_scope_and_resume(self):
@@ -109,7 +109,7 @@ class NativeSyncTests(unittest.TestCase):
             peer=self.sync/'peer';peer.mkdir(parents=True)
             (peer/'old.userdb.txt').write_bytes(snapshot('peer','old'))
             self.assertEqual(self.native.run(names,now=10060)['reason'],'interval')
-            with patch.object(self.native,'idle_seconds',return_value=1):
+            with patch.object(self.native,'observe_idle',return_value=__import__('client.maintenance.idle',fromlist=['Observation']).Observation('active','test',0)):
                 self.assertEqual(self.native.run(names,now=10901)['reason'],'input-active')
             self.native.run(names,now=10902)
             self.assertEqual(run.call_count,2)
@@ -147,14 +147,14 @@ class NativeSyncTests(unittest.TestCase):
         def execute(*args,**kw):
             self.assertEqual(kw['env']['RIME_SYNC_IDLE_SECONDS'],'30')
             Path(kw['env']['RIME_SYNC_RECEIPT']).write_text(json.dumps({'status':'deferred'}))
-        with patch('native_sync.subprocess.run',side_effect=execute):
+        with patch('client.maintenance.native_sync.subprocess.run',side_effect=execute):
             result=self.native.run(names,now=10000)
         self.assertEqual(result['status'],'deferred')
         self.assertEqual(result['last_success_at'],0)
         self.assertEqual(json.loads((self.native.state/'schedule.json').read_text())['last_attempt'],0)
 
     def test_policy_validation(self):
-        from native_sync import load_schedule,DEFAULT_SCHEDULE
+        from client.maintenance.native_sync import load_schedule, DEFAULT_SCHEDULE
         path=self.root/'policy.json'
         for values in ({**DEFAULT_SCHEDULE,'idle_seconds':0},
                        {**DEFAULT_SCHEDULE,'interval_seconds':True},

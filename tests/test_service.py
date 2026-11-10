@@ -11,9 +11,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'client'))
-import service
-import sync
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import client.services.service as service
+import client.core.configuration as sync
+import client.cli as cli
+import client.application.runtime as runtime
 
 
 class ServiceTests(unittest.TestCase):
@@ -21,7 +23,7 @@ class ServiceTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.script = self.root / 'project space/client/sync.py'
+        self.script = self.root / 'project space/rime.py'
         self.args = argparse.Namespace(interval=7, dry_run=False, third_party_only=False,
                                        device_id=None, native_sync_command=None)
         for name in service.PATH_OPTIONS:
@@ -70,7 +72,7 @@ class ServiceTests(unittest.TestCase):
         text = self.unit.read_text()
         self.assertIn('--watch', text)
         self.assertIn('project space', text)
-        self.assertIn(f'WorkingDirectory={self.script.parent.parent}/.\n', text)
+        self.assertIn(f'WorkingDirectory={self.script.parent}/.\n', text)
         if __import__("os").name != "nt":
             self.assertEqual(self.unit.stat().st_mode & 0o777, 0o600)
         self.assertTrue(self.active)
@@ -128,7 +130,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_manager_unavailable_leaves_no_files(self):
         self.failure = 'show-environment'
-        with self.assertRaisesRegex(ValueError, 'WSL'):
+        with self.assertRaisesRegex(ValueError, 'systemd'):
             self.manage()
         self.assertFalse(self.unit.exists())
 
@@ -200,15 +202,15 @@ class ServiceTests(unittest.TestCase):
     def test_status_and_uninstall_bypass_target_and_identity(self):
         for action in ('status', 'uninstall'):
             with patch.object(sys, 'argv', ['sync.py', '--service', action]), \
-                    patch('identity.load_identity', side_effect=AssertionError('must not load')), \
+                    patch('client.config.identity.load_identity', side_effect=AssertionError('must not load')), \
                     patch.object(service, 'manage', return_value=0) as manage:
-                self.assertEqual(sync.main(), 0)
+                self.assertEqual(cli.main(), 0)
                 self.assertEqual(manage.call_args.args[0], action)
 
     def test_cli_rejects_one_shot_action_with_service(self):
         with patch.object(sys, 'argv', ['sync.py', '--service', 'install', '--resolve-conflicts', 'remote']), \
                 contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            sync.main()
+            cli.main()
 
 
 if __name__ == '__main__':
