@@ -1,16 +1,20 @@
 # 小狼毫个人偏好；应用名单仅影响初始状态，不强制锁定英文。
 patch:
   global_ascii: false
-  "style/horizontal": true
+  # 候选列表上下排列，文字本身不旋转、不纵排。
+  "style/horizontal": false
   "style/vertical_text": false
   "style/font_point": 14
   "style/label_font_point": 14
   "style/comment_font_point": 14
   "style/color_scheme": hx_light
   "style/color_scheme_dark": hx_dark
-  "style/layout/round_corner": 0
-  "style/layout/corner_radius": 0
-  "style/layout/shadow_radius": 0
+  "style/layout/round_corner": 7
+  "style/layout/hilited_corner_radius": 7
+  "style/layout/corner_radius": 12
+  "style/layout/shadow_radius": 12
+  "style/layout/shadow_offset_x": 0
+  "style/layout/shadow_offset_y": 3
   "style/layout/border_width": 1
   "style/label_format": "%s"
   "app_options/+":
@@ -83,10 +87,13 @@ patch:
   "preset_color_schemes/hx_light":
     name: "hx_light"
     author: hx
-    back_color: 0xffffff
-    border_color: 0xffffff
-    candidate_back_color: 0xffffff
-    hilited_back_color: 0xffffff
+    # ABGR：前两位为透明度；E6 约为 90% 不透明，文字保持不透明。
+    color_format: abgr
+    back_color: 0xe6ffffff
+    border_color: 0x24909090
+    shadow_color: 0x28000000
+    candidate_back_color: 0x00000000
+    hilited_back_color: 0x00000000
     hilited_candidate_back_color: 0x50b000
     text_color: 0x000000
     candidate_text_color: 0x000000
@@ -99,10 +106,12 @@ patch:
   "preset_color_schemes/hx_dark":
     name: "hx_dark"
     author: hx
-    back_color: 0x000000
-    border_color: 0x000000
-    candidate_back_color: 0x000000
-    hilited_back_color: 0x000000
+    color_format: abgr
+    back_color: 0xe6000000
+    border_color: 0x30ffffff
+    shadow_color: 0x50000000
+    candidate_back_color: 0x00000000
+    hilited_back_color: 0x00000000
     hilited_candidate_back_color: 0x008000
     text_color: 0xffffff
     candidate_text_color: 0xffffff

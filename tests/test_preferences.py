@@ -11,7 +11,9 @@ class PreferenceTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         if not (root / 'config/lua/hx_preferences.lua').exists():
             self.skipTest('Personal assets are excluded from the server image')
-        candidates = [ctypes.util.find_library('lua5.4'), ctypes.util.find_library('lua5.3'), '/usr/lib64/liblua-5.4.so']
+        # Weasel's rime.dll exports its bundled Lua API; opt in without assuming
+        # an installation path or installing another runtime on Windows.
+        candidates = [os.environ.get('RIME_TEST_DLL'), ctypes.util.find_library('lua5.4'), ctypes.util.find_library('lua5.3'), '/usr/lib64/liblua-5.4.so']
         lib = None
         for candidate in candidates:
             if candidate:
