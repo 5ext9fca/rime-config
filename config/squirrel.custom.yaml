@@ -1,0 +1,61 @@
+# 鼠须管外观：对应 weasel.custom.yaml 的明暗配色、竖排列表及圆角布局。
+# 仅设置外观；保留现有 app_options 和输入行为。
+patch:
+  "style/color_scheme": hx_light
+  "style/color_scheme_dark": hx_dark
+  "style/candidate_list_layout": stacked
+  "style/text_orientation": horizontal
+  "style/candidate_format": "[label] [candidate] [comment]"
+  # 空字体名使用系统回退，避免强制中文字体影响彩色 Emoji。
+  "style/font_face": ""
+  "style/label_font_face": ""
+  "style/comment_font_face": ""
+  "style/font_point": 14
+  "style/label_font_point": 14
+  "style/comment_font_point": 14
+  "style/corner_radius": 12
+  "style/hilited_corner_radius": 7
+  # 鼠须管此字段是候选高亮阴影，不能等价映射 Windows 窗口阴影及偏移。
+  "style/shadow_size": 12
+  # 鼠须管的 border_width/height 是候选框边距，并非小狼毫的描边宽度。
+  "style/border_width": 1
+  "style/border_height": 1
+  # 使用 macOS 原生毛玻璃；半透明背景色作为其上的明暗底色。
+  "style/translucency": true
+  "style/mutual_exclusive": false
+  "preset_color_schemes/hx_light":
+    name: "hx 浅色"
+    author: hx
+    color_space: srgb
+    back_color: 0xe6ffffff
+    border_color: 0x24909090
+    candidate_back_color: 0x00000000
+    preedit_back_color: 0x00000000
+    hilited_back_color: 0x00000000
+    hilited_candidate_back_color: 0x50b000
+    text_color: 0x000000
+    candidate_text_color: 0x000000
+    label_color: 0x000000
+    comment_text_color: 0x000000
+    hilited_text_color: 0x000000
+    hilited_candidate_text_color: 0x000000
+    hilited_candidate_label_color: 0x000000
+    hilited_comment_text_color: 0x000000
+  "preset_color_schemes/hx_dark":
+    name: "hx 深色"
+    author: hx
+    color_space: srgb
+    back_color: 0xe6000000
+    border_color: 0x30ffffff
+    candidate_back_color: 0x00000000
+    preedit_back_color: 0x00000000
+    hilited_back_color: 0x00000000
+    hilited_candidate_back_color: 0x008000
+    text_color: 0xffffff
+    candidate_text_color: 0xffffff
+    label_color: 0xffffff
+    comment_text_color: 0xffffff
+    hilited_text_color: 0xffffff
+    hilited_candidate_text_color: 0xffffff
+    hilited_candidate_label_color: 0xffffff
+    hilited_comment_text_color: 0xffffff

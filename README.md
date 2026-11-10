@@ -174,11 +174,13 @@ python3 client/sync.py --third-party-only --refresh-third-party
 项目已配置默认简体、不启用模糊音，沿用雾凇纠错和中英混输，开启 Emoji 与补全。主要操作：
 
 - `Ctrl+Space` 切换中英文，Shift 不切换，CapsLock 保留大写功能。切换时提交去掉空格和分隔符的拼音，例如 `xi'an hao` → `xianhao`。
-- `-`、`=` 翻页；竖排列表、每页 9 候选、14 号字，黑/白半透明背景随系统主题切换，绿色圆角高亮。窗口圆角 12、候选圆角 7、阴影半径 12，背景约 90% 不透明，文字保持不透明。
+- Windows 小狼毫使用 `-`、`=` 翻页；竖排列表、每页 9 候选、14 号字，黑/白半透明背景随系统主题切换，绿色圆角高亮。窗口圆角 12、候选圆角 7、阴影半径 12，背景约 90% 不透明，文字保持不透明。
 - 不要求中英文状态跨窗口共享；终端和代码编辑器默认英文，仍可手动切换。程序名单及外观在 [`weasel.custom.yaml`](config/weasel.custom.yaml) 中调整，仅适用于 Windows 小狼毫。
 - 中文模式下，标点根据当前候选或最近提交字符选择中英文形式。无法读取应用任意光标前文本，粘贴或移动光标后可能回退中文标点。
 
-通用快捷键见 [`default.custom.yaml`](config/default.custom.yaml)，雾凇选项见 [`rime_ice.custom.yaml`](config/rime_ice.custom.yaml)。这些偏好应用后仍需重新部署，主题及真实输入体验需实机确认；macOS/Ubuntu 外观需按前端另行配置。
+通用快捷键见 [`default.custom.yaml`](config/default.custom.yaml)，雾凇选项见 [`rime_ice.custom.yaml`](config/rime_ice.custom.yaml)。macOS 外观见 [`squirrel.custom.yaml`](config/squirrel.custom.yaml)，已加入本地同步清单：竖排列表、14 号字、系统毛玻璃叠加明暗黑白半透明底色（约 90% 不透明）、绿色圆角高亮；窗口圆角 12、高亮圆角 7、高亮阴影 12。候选数量沿用通用配置的 9 个。鼠须管使用系统字体回退，字体观感及窗口边距不保证与 Windows 像素一致；鼠须管的阴影作用于候选高亮，无法逐项等同 Windows 窗口阴影及偏移；仅迁移外观，不迁移 Windows 程序名单。这些偏好修改后仍需重新部署；当前 macOS UI 已于 2026-11-10 由用户确认验收通过。Ubuntu 外观需按前端另行配置。
+
+已有服务端也必须在其 `sync-manifest.json` 中允许 `squirrel.custom.yaml`，才能通过 HTTPS 同步此文件。仅更新本地清单和应用配置不会自动修改远端范围或上传配置。
 
 ## 备份与常见问题
 
@@ -264,3 +266,18 @@ python client/sync.py --plan-json
 Windows 原生支持已于 2026-11-10 完成本轮验收，由用户确认接受。后台任务已安装并确认单实例运行、日志持续更新；回归测试为 85 项，其中 78 项通过、7 项因符号链接权限限制跳过。
 
 本机现已连接 `https://198.13.57.54:8443/rime/v1/state`，后台每 60 秒检查云同步，网络失败后 30 秒重试；原生维护采用独立的 15 分钟限频和空闲检测。生产端 6 个配置文件、2 份词典快照核对通过；设备令牌仅保存在私有配置中。Windows 已接入原生 `/sync` 自动合并、导出及回传，模式为 `native-all`，每轮另记录是否完成或延后。最新 Windows 回归 99 项：92 通过、7 项因符号链接权限跳过。测试证据见 [Windows 验收总结](PROJECT.md#windows-验收总结)、[公网部署与同步验收](PROJECT.md#公网部署与同步验收) 和 [原生全量同步](PROJECT.md#原生全量同步)。
+
+## macOS 验收记录
+
+2026-11-10 合并远端后，回归 101 项通过、5 项 Windows 专用测试跳过，隔离词典原生合并和重复词频检查通过。Mac 已以独立设备接入 VPS：7 个配置、2 份本机快照核对一致，鼠须管实际合并 Windows 词条成功，重复 HTTPS 同步保持版本 18。新版 LaunchAgent 运行正常；macOS UI 已于 2026-11-10 由用户确认验收通过，验收版本启用系统毛玻璃、恢复默认行距 5。
+
+本机正式云配置保存在 Git 忽略的 `remote.local.json`，仓库 `remote.json` 仍是禁用的示例。本机手动执行或重新安装服务时使用：
+
+```bash
+python3 client/sync.py --remote-config remote.local.json --sync-now
+python3 client/sync.py --service install --remote-config remote.local.json
+```
+
+后台目前自动同步配置和快照，**尚未安装 macOS 无人值守原生包装器**。学习数据导出及接收快照导入仍需在鼠须管执行“同步用户资料”，快照传输不等于原生合并。详见 [macOS 公网与原生合并续验](PROJECT.md#macos-公网与原生合并续验2026-11-10)。
+
+下一阶段由另一台 Ubuntu 实机开展 Linux 验收，步骤及未完成项见 [Ubuntu / Linux 验收交接](PROJECT.md#ubuntu--linux-验收交接)。

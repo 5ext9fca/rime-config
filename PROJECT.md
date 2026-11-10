@@ -6,6 +6,8 @@
 
 截至 2026-11-10，Windows 原生客户端及真实 VPS 已完成验收。本机当前用户计划任务单实例运行，每 60 秒通过现有 Caddy HTTPS 同步。6 个个人配置文件、2 份词典快照核对通过；后续已按用户要求接入原生 `/sync` 自动合并、导出及回传，模式为 `native-all`。Windows 和 Unix 共用全量词典范围补齐规则；Unix 原生包装器配置及实机验收不在本轮范围。详细证据见 [Windows 验收总结](#windows-验收总结)、[公网部署与同步验收](#公网部署与同步验收) 和 [原生全量同步](#原生全量同步)。
 
+macOS 已完成配置与快照 HTTPS 端到端、手动原生词典合并及用户 UI 验收；launchd 运行与异常重启通过，登录触发未实测。macOS 后台仍为 `snapshots-only`，无人值守原生包装器未交付。下一阶段由另一台 Ubuntu 进行 Linux 实机验收，见下文交接。
+
 ## 代码与数据边界
 
 | 位置 | 职责 |
@@ -37,7 +39,7 @@
 | 配置合并 | 使用上次同步基线、本地配置和服务端配置进行三方合并，冲突保留双方内容并报告 | 已实现按文件三方比较、冲突保留及显式解决；不自动拼接 YAML |
 | 配置应用 | 合并结果写入 `config/`，按清单应用到实际 Rime 目录 | 已实现本地单向应用、备份和受控删除 |
 | 个人词典应用 | 采集本机学习数据，与远端数据合并，通过 Rime 原生机制更新实际用户词典 | Windows 原生 /sync 已接入后台，按全量范围合并导出并验证；Unix 共用全量规则，平台包装器配置及实机联调待完成 |
-| 后台自动运行 | 当前用户登录后持续同步，支持失败恢复 | Windows 当前用户计划任务已验收；systemd / launchd 已实现，其他平台实机验收待完成 |
+| 后台自动运行 | 当前用户登录后持续同步，支持失败恢复 | Windows 当前用户计划任务已验收；macOS launchd 运行及异常重启通过，登录触发待验收；Linux systemd 待实机验收 |
 | 第三方词典刷新 | 按独立周期拉取指定上游词典，校验后更新本机副本 | 已实现项目配置驱动的 GitHub 词典刷新，默认雾凇拼音 |
 
 `config/` 继续作为本地配置应用的唯一权威来源：服务端同步先合并更新此目录，再向输入法目录应用。配置编辑发生在 `config/`；实际目录中的配置修改不会自动反向采集。自动学习词典从实际输入法产生，使用独立的数据同步流程。
@@ -378,7 +380,25 @@ python3 client/sync.py --watch --interval 10 \
 - **标点**：中文模式下，根据当前候选或本会话最近已提交字符选择：汉字后中文标点，ASCII 字母/数字后英文标点。中文引号等交由原生标点器处理；拼音串内的单引号仍是分隔符，中括号有候选时仍用于以词定字，`- =` 保留翻页。英文模式保持英文标点。
 - **上下文限制**：此功能无法读取应用任意光标前文本。粘贴、鼠标移动、应用切换等情况下不能保证跟随真实上一个字符；能识别到的导航/快捷键后会放弃旧记录，无可靠记录时回退中文标点。这不是微信输入法偏好的直接导入，而是依据用户回答编写的 Rime 配置。
 
-上述偏好写入项目配置后，仍需应用并重新部署小狼毫。Lua 已使用小狼毫自带运行时验证切换、去分隔符、标点、导航回退及翻页让行，实际 Rime 引擎的候选和快捷键测试通过；桌面 UI 验收由用户负责，本轮已由用户确认接受。配色和应用选项仅针对小狼毫，macOS/Ubuntu 前端需要各自的外观配置。
+上述偏好写入项目配置后，仍需应用并重新部署小狼毫。Lua 已使用小狼毫自带运行时验证切换、去分隔符、标点、导航回退及翻页让行，实际 Rime 引擎的候选和快捷键测试通过；桌面 UI 验收由用户负责，本轮已由用户确认接受。Windows 配色和应用选项仅针对小狼毫；macOS 外观适配见下文，Ubuntu 前端需另行配置。
+
+### macOS 外观适配
+
+**UI 验收结论（2026-11-10）：用户确认通过。** 最终版本为竖排 9 候选、14 号字、系统毛玻璃与 E6 明暗底色、窗口圆角 12、高亮圆角 7、高亮阴影 12；撤销行距 18，继承默认行距 5。首尾候选的额外扩展保留鼠须管原生行为。此结论仅覆盖 UI，不改变无人值守原生包装器、登录启动等未完成项。以下历史阶段记录保留原时间点状态。
+
+`config/squirrel.custom.yaml` 已按当前 Windows `weasel.custom.yaml` 重新生成（2026-11-10）：竖排候选列表 `candidate_list_layout: stacked`，文字方向保持 horizontal；候选、序号、注释字号均为 14，候选数量沿用通用配置的 9 个。窗口圆角 12、高亮圆角 7；明暗背景沿用 ABGR 的 `0xe6ffffff` / `0xe6000000`，约 90% 不透明，文字与绿色高亮保持不透明。颜色使用 sRGB，标签高亮字段映射为 `hilited_candidate_label_color`，普通候选及预编辑背景透明。
+
+鼠须管 `shadow_size: 12` 表示候选高亮阴影，不能与 Windows 窗口阴影半径、偏移和阴影色逐项等价；不添加前端不支持的 Windows 字段。`translucency: true` 启用系统毛玻璃，保留 E6 alpha 明暗底色及不透明文字。旧补丁已备份到私有 `private/macos-acceptance/squirrel-before-*`。实际目录已应用，`Squirrel --reload` 后检查生成的 `build/squirrel.yaml` 确认竖排、圆角、阴影和背景 alpha 正确，UI 已于 2026-11-10 由用户确认验收通过。通用 `rime_deployer --build` 成功并不代表前端 `squirrel.yaml` 已重编译，应在前端 reload 后检查。
+
+首尾候选扩展：用户已要求撤销 `line_spacing: 18`，补丁不再覆盖行距，当前继承默认值 5。鼠须管 1.1.2 在竖排高亮路径中直接为首尾追加边距，并将边界扩展到外框，没有 YAML 开关可单独禁用。`surrounding_extra_expansion` 调整的是非选中候选背景相对大小，不是首尾扩展开关。配置只能通过调整圆角、边距、行距间接平衡；要在保留当前其他尺寸的同时真正取消此行为，需要修改前端绘制代码并重新构建。此次仅回滚行距、开启原生毛玻璃，保留其他几何参数；首尾差异可能恢复。
+
+原生效果（鼠须管 1.1.2）：背景色 alpha 支持普通透明；`translucency: true` 使用 AppKit `NSVisualEffectView`（behindWindow / hudWindow）实现系统毛玻璃，当前已开启；`style/alpha` 会影响整个面板，当前保持默认 1。窗口本身通过 `NSPanel.hasShadow = true` 使用系统阴影；`shadow_size` 则是另外的 Core Animation 高亮阴影，黑色、不透明度 0.2，偏移随尺寸推导，不能由 YAML 独立指定 Windows 的阴影色和偏移。依据 [SquirrelPanel](https://github.com/rime/squirrel/blob/1.1.2/sources/SquirrelPanel.swift) 和 [SquirrelView](https://github.com/rime/squirrel/blob/1.1.2/sources/SquirrelView.swift)。
+
+鼠须管 `border_width`、`border_height` 控制边距，不能等同小狼毫描边宽度；当前均为 1。字体设为空以使用系统回退；当前 UI 已获用户验收，不保证两端逐像素一致。保留原来的行内预编辑与应用选项；Windows `.exe` 名单不属于本次外观迁移。
+
+2026-11-10 已应用到实际目录，通过鼠须管原生部署器编译并检查生成的 `build/squirrel.yaml`，随后执行官方 `Squirrel --reload` 请求前端重新部署。原目录无 `squirrel.custom.yaml`，本次新增补丁，不覆盖基础 `squirrel.yaml`。实际 UI 验收由用户完成。首次迁移时未上传；后续已扩展真实 VPS 清单并完成 HTTPS 同步，见公网续验记录。
+
+字段参考：[鼠须管官方配置](https://github.com/rime/squirrel/blob/master/data/squirrel.yaml)。
 
 
 ## 自动系统服务注册
@@ -404,6 +424,67 @@ python3 client/sync.py --watch --interval 10 \
 自动测试覆盖三类服务的安装、更新、卸载、注册失败恢复、参数处理和只读预览；Windows 另完成真实任务生命周期及故障恢复测试。systemd / launchd 的实机运行仍需在对应平台验收。
 
 ## 开发与验证
+
+### Ubuntu / Linux 验收交接
+
+下一阶段由另一台 Ubuntu 实机继续；本次 macOS UI 已由用户确认通过，不将其结果视为 Linux 已验收。
+
+1. 拉取本次提交，先确认实际使用的前端是 IBus Rime、Fcitx5 Rime 或其他实现，再发现实际目录；多个候选必须明确选择，不沿用 Mac 私有路径文件。
+2. 运行 `python3 -m unittest discover -s tests -v`、`--dry-run`、`--plan-json`，记录真实平台、版本、通过与跳过项。原生验收脚本必须适配 Linux 已安装运行时，不能直接套用 Windows DLL 或 macOS 应用路径。
+3. 备份后应用清单内配置并通过 Linux 前端部署；核对完整雾凇、Lua、OpenCC 和模型依赖。第三方刷新只覆盖配置中指定的词典，单独验收下载、哈希及失败保留旧版本。
+4. 为 Ubuntu 使用其自身 Rime installation_id 和独立服务端令牌，沿用同一用户 hx；不要复制 Windows/Mac 凭据或设备 ID。私有云配置可使用 `remote.local.json`，显式传给单次运行及服务安装。当前服务端范围包含 7 个配置（含 squirrel 补丁）及 luna_pinyin、rime_ice；新增范围先对齐服务端。
+5. 验收真实 HTTPS 拉取、三方冲突保留、回传、网络恢复及重复请求；配置始终先合并到 `config/`。保留所有设备现有数据，不用整份选边掩盖冲突。
+6. 先在隔离目录验证原生快照合并与重复词频，再验收实际 Linux 前端的全量原生入口。如实现无人值守包装器，遵守前述空闲、限频、真实完成凭据及失败禁止上传约定；不能把异步通知退出码 0 当成功，不直接操作活动数据库。
+7. 验收 systemd 用户服务的安装、更新、卸载、单实例、异常重启及实际登录启动；最后一次配置部署后由用户确认 Linux UI 和输入体验。Windows/macOS 外观补丁不能替代 Linux 前端外观配置。
+
+交接时分开报告配置应用、快照传输、原生导入、后台运行与 UI。更新本文验证记录和 README 使用方式；服务端有变更时同步维护 server/README。Mac 尚未交付无人值守原生包装器、未实测登录启动；VPS 定期备份也仍未配置，这些不应被 Linux 验收默认为已完成。
+
+
+### macOS 公网与原生合并续验（2026-11-10）
+
+网络恢复后，本机使用独立设备身份完成 VPS 接入；此前 SSH 超时阻塞已解除。服务端保留 Windows 设备，备份设置后添加 Mac，并将 `squirrel.custom.yaml` 加入配置范围；重建容器加载新设置，最终健康检查通过。凭据仅在私有 `device.local.json`，云配置为私有 `remote.local.json`，两者权限 0600 且被 Git 忽略；仓库示例 `remote.json` 继续默认禁用。
+
+- HTTPS 证书校验成功；未认证请求返回 401，Mac 认证返回其自身设备身份。首次核对版本 15，6 个共享配置仅存在 LF/CRLF 差异，备份后按远端字节对齐；鼠须管补丁为新增文件。首次提交版本 16，后续 Windows 与 Mac 交换后的最终核对版本为 18。
+- 通过鼠须管自身 `Squirrel --sync` 合并接收的 Windows 快照，再请求重新部署。专属本轮日志包含两个词典的同步及 `3 tasks ran: 3 success, 0 failure`；两个本机快照均新生成且通过元数据校验。不直接打开或复制活动数据库。
+- 最终 7 个配置在 `config/`、实际目录及 HTTPS 返回值间逐字节一致；本机 `luna_pinyin`、`rime_ice` 快照与服务器一致，导出词条覆盖 Windows 快照词条。随后重复 HTTPS 同步保持版本 18。多次原生合并词频不变的验证仍以隔离验收脚本为证据，不把线上有其他设备写入时的版本变化解释为幂等失败。
+- LaunchAgent 已安装并运行，参数显式使用 `--remote-config /Users/hx/rime-config/remote.local.json`，每 60 秒检查云同步、失败后 30 秒重试；本地轮询间隔 5 秒。正式设备身份与令牌不放进服务参数。
+- 本轮完成的是 **Mac/VPS 配置与快照端到端 + 手动触发的真实原生合并**。后台模式仍为 `snapshots-only`，未安装无人值守 macOS 原生包装器；新学习数据导出和接收快照导入仍需触发“同步用户资料”。UI 已在最后一次应用与重新部署后由用户确认通过（2026-11-10）；注销登录自动启动仍未实测。
+
+私有证据在 `private/macos-acceptance/result.json`、`native-remote-merge.log`，源配置备份在同目录 `config-before-*`，实际目录备份由客户端状态目录保存。服务端设置和清单备份后缀为 `.macos-backup-*`。这些证据及备份不提交 Git。原生入口参考 [Squirrel 命令入口](https://github.com/rime/squirrel/blob/master/sources/Main.swift) 和 [同步调用实现](https://github.com/rime/squirrel/blob/master/sources/SquirrelApplicationDelegate.swift)；`--sync` 本身是异步通知，不能仅以退出码 0 判定导入成功。
+
+### 合并远端后的 macOS 复验（2026-11-10）
+
+已将 `origin/main` 的 4 个提交快进合并至 `7cbbe68`，保留本地鼠须管补丁、同步清单及此前验收记录。Windows 使用远端新增的竖排圆角样式，macOS 继续保留此前横排矩形样式，不自动跨前端迁移外观。
+
+- 回归 106 项：101 项通过，5 项 Windows PowerShell 专用测试跳过。通过鼠须管 Frameworks 下的 librime 和 Lua 插件加载实际 Lua 测试，未跳过该项。日志：`/private/tmp/rime-macos-merged-tests.log`。
+- 新增 `tests/macos_native_acceptance.py`：调用鼠须管 `rime_dict_manager`，仅在新建隔离目录验证两个词典的快照恢复、双设备合并、范围限制和多次重复合并词频不变。全部通过，未访问活动数据库。Windows 的 ctypes 验收脚本依赖 `RimeSetup` 导出符号，不能直接用于本机鼠须管动态库；本轮不将其计为 macOS 引擎验收通过。
+- `--dry-run`、`--plan-json`、launchd 安装预览通过。实际重新安装并启动新版 LaunchAgent 后状态为 running，`workflow-result.json` 记录 macOS 配置应用与第三方检查成功；云同步和词典交换因尚未配置而跳过。
+- 最后一次应用后，7 个清单内配置逐字节匹配实际目录；`rime_deployer --build` 与 `Squirrel --reload` 均返回 0，生成配置中的横排及明暗主题存在。UI 按用户要求留待其在此后验收；注销登录自动启动未复验。
+- 已获用户授权为 Mac 注册独立 VPS 凭据并启用同步。首次 SSH 查询显示生产容器 healthy；随后 SSH 密钥交换超时，HTTPS 请求也超时，注册命令未完成。本地仅生成了私有候选凭据，未写入正式 `device.local.json`，`remote.json` 保持禁用；不能声称 Mac 已接入公网。已停止本轮滞留 SSH 请求。网络恢复后需先核对服务端设备及范围，再继续注册和同步。
+- 实际学习词典的在线原生导入、无人值守 macOS 包装器及 Mac/VPS 端到端仍未完成，隔离快照测试不替代这些验收。
+
+复现隔离原生验证：
+
+```bash
+python3 tests/macos_native_acceptance.py \
+  --manager '/Library/Input Methods/Squirrel.app/Contents/MacOS/rime_dict_manager' \
+  --workspace /private/tmp
+```
+
+### macOS 实机验收进度（2026-11-10）
+
+本轮在 macOS 27.2、Python 3.9.6 上完成以下检查；尚未完成全量验收：
+
+- 使用 `TMPDIR=/private/tmp` 运行 76 项测试，全部通过。Lua 测试需先用 `ctypes.CDLL` 全局加载鼠须管 `Contents/Frameworks/librime.1.dylib`，再将测试库发现指向 `rime-plugins/librime-lua.dylib`；普通 unittest 命令仍可能跳过该项。系统默认临时路径包含 `/var` 符号链接，会被当前路径安全检查拒绝；测试使用真实目录，不放宽符号链接保护。本轮完整测试日志保存在 `/private/tmp/rime-macos-full-tests.log`（临时文件）。
+- 自动发现 `~/Library/Rime`，个人配置应用成功并保留修改前备份；实际目录原有万象模型配置由项目内对应配置接管。
+- 真实 GitHub 检查及词典校验成功，上游提交为 `99662ba01e3affa6a0f009174ca530b887bac3b6`，目标词典已是该版本。本轮未验证真实下载失败后的恢复。
+- 用户级 `local.rime-config` LaunchAgent 的安装、更新、卸载、重装通过。模拟 SIGKILL 后自动重启，启动次数由 1 增至 2，最终为 running，后台错误日志为空；尚未验证注销登录自动启动。
+- 鼠须管自带 `rime_deployer --build` 返回 0；生成配置包含 9 候选、`hx_preferences` 处理器及万象模型设置。这不代表真实输入体验已验收。
+- 用户已启用并切换到鼠须管，确认能输入中文；实际 UI 验收由用户负责。自动按键未触发候选，不据此判定输入法故障；快捷键、外观等不计为终端验收通过项。
+- 使用鼠须管自带 `rime_dict_manager` 在 `/private/tmp` 隔离目录中完成测试词典导入、导出和原生快照恢复。`luna_pinyin`、`rime_ice` 均验证保留两个模拟设备的词条，重复恢复后的导出内容（含词频）一致；原生快照通过客户端格式校验，双设备目录交换及重复交换通过。未操作实际活动数据库，未安装无人值守原生同步包装程序，实际学习数据导入仍未验收。
+- `remote.json` 仍禁用且地址为占位符，真实 VPS、TLS、设备鉴权和跨设备词典合并尚未验证，需要实际服务地址及设备凭据。
+
+随后按用户要求通过 `ssh proxy_jp` 只读提取真实 VPS 同步数据库中用户 `hx` 的 revision 3 配置，并备份后覆盖本地 `config/` 的 6 个范围内文件，再应用到 `~/Library/Rime`。两处文件均逐字节匹配远端快照；差异仅为远端 CRLF 换行。原生部署通过，同步服务已恢复 running。源文件备份及远端版本记录保存在私有 `private/remote-overwrite/backup-20261110-050912/`，实际目录旧文件由客户端另行备份。本次 SSH 单次覆盖没有注册设备、启用 HTTPS 同步或修改远端数据，不能据此认定公网 API 和词典端到端验收通过。
 
 以下命令均从仓库根目录执行：
 
