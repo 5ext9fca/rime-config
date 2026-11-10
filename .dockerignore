@@ -1,6 +1,7 @@
 **
 !client/
 !client/*.py
+!client/*.ps1
 !server/
 !server/app.py
 !server/gunicorn.conf.py
@@ -11,4 +12,5 @@
 !sync-manifest.json
 !third-party.json
 !remote.json
+!native-sync.json
 !paths.json

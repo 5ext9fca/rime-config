@@ -10,10 +10,10 @@ USER 10001:10001
 
 FROM base AS test
 COPY tests/ /app/tests/
-COPY sync-manifest.json third-party.json remote.json paths.json /app/
+COPY sync-manifest.json third-party.json remote.json paths.json native-sync.json /app/
 CMD ["python", "-m", "unittest", "discover", "-s", "tests", "-v"]
 
 FROM base AS runtime
 ENV RIME_SETTINGS=/config/settings.json
 EXPOSE 8080
-CMD ["gunicorn", "--chdir", "/app/server", "--config", "gunicorn.conf.py", "app:create_app()"]
+CMD ["gunicorn", "--chdir", "/app/server", "--config", "/app/server/gunicorn.conf.py", "app:create_app()"]
