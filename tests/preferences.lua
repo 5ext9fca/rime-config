@@ -1,4 +1,4 @@
-local prefs = dofile('config/lua/hx_preferences.lua')
+local prefs = dofile('config.example/lua/hx_preferences.lua')
 local function make(distribution, initially_ascii)
   local function notifier()
     local n = { callbacks = {} }

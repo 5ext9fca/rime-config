@@ -8,7 +8,7 @@
 
 ## 1. 安装与首次运行
 
-先下载或克隆本项目，在项目根目录执行命令。需要 Python 3.9 或更新版本，Windows 建议 3.12 或更新版本。客户端核心无需额外 Python 包。
+先下载或克隆本项目，在项目根目录执行命令。个人配置实际文件由同步服务管理，不再纳入 Git；仓库只在 `config.example/` 保留当前配置生成的示例。需要 Python 3.9 或更新版本，Windows 建议 3.12 或更新版本。客户端核心无需额外 Python 包。
 
 请先安装对应平台的 Rime 输入法、完整雾凇拼音方案及配置依赖的万象模型。本工具只刷新指定词典，不安装或升级完整方案、Lua、OpenCC 和模型。
 
@@ -25,6 +25,7 @@ Windows PowerShell：
 ```powershell
 if (!(Test-Path remote.json)) { Copy-Item remote.json.example remote.json }
 python rime.py --discover-target
+# 首次使用先按下文准备个人配置，或完成云同步初始化
 python rime.py --dry-run
 python rime.py
 ```
@@ -34,6 +35,7 @@ macOS / Ubuntu：
 ```bash
 test -e remote.json || cp remote.json.example remote.json
 python3 rime.py --discover-target
+# 首次使用先按下文准备个人配置，或完成云同步初始化
 python3 rime.py --dry-run
 python3 rime.py
 ```
@@ -41,6 +43,35 @@ python3 rime.py
 模板默认关闭云同步；本地使用不需要设备令牌。普通运行会应用配置，并按周期检查第三方词典更新，可能联网；`--dry-run` 只预览，不联网或写文件。配置变化后会按自动维护策略等待空闲重新部署。
 
 下文通用命令使用 `python3`，Windows 请换成 `python` 并使用本机路径。
+
+### 首次准备个人配置
+
+加入已有云同步账号时，先完成下文的云同步初始化并拉取配置，不必复制示例。全新账号或仅本地使用时，在首次应用前从 `config.example/` 复制缺少的文件到 `config/`。
+
+Windows PowerShell（保留已有文件）：
+
+```powershell
+$exampleRoot = (Resolve-Path config.example).Path
+Get-ChildItem -LiteralPath $exampleRoot -File -Recurse | ForEach-Object {
+    $relative = $_.FullName.Substring($exampleRoot.Length + 1)
+    $destination = Join-Path config $relative
+    if (!(Test-Path -LiteralPath $destination)) {
+        New-Item -ItemType Directory -Force -Path (Split-Path $destination) | Out-Null
+        Copy-Item -LiteralPath $_.FullName -Destination $destination
+    }
+}
+```
+
+macOS / Ubuntu（保留已有文件）：
+
+```bash
+mkdir -p config
+cp -Rn config.example/. config/
+```
+
+示例不是运行时配置源，修改示例不会自动应用；日常仍编辑 `config/`。示例中的输入偏好、主题和短语按个人需要调整。`fcitx5.yaml` 是清单中保留的历史删除项，示例不重建它。
+
+**已有设备升级此变更前，先停止后台服务，并将 `config/` 备份到仓库之外。** Git 更新会移除原来受跟踪的文件；更新后从备份恢复这些个人文件到 `config/`，再恢复服务，不要用示例覆盖自己的配置或删除同步基线。本次本机取消跟踪操作保留了实际文件。Git 历史中的旧配置未被清除。
 
 ### 选择或迁移输入法目录
 
@@ -63,7 +94,7 @@ python3 rime.py --discover-target --rediscover-target
 ## 2. 修改配置与输入偏好
 
 1. 编辑 `config/` 中相应文件，优先使用 `*.custom.yaml` 补丁；自定义短语写入 `config/custom_phrase.txt`。
-2. 新增个人文件时，在 `sync-manifest.json` 的 `configuration.files` 中加入相对路径，不支持通配符。
+2. 新增个人文件时，在 `sync-manifest.json` 的 `configuration.files` 中加入相对路径，不支持通配符。新增受管路径还应加入 `.gitignore`，避免提交实际个人配置。
 3. 执行 `python3 rime.py --dry-run` 检查，再运行 `python3 rime.py` 应用；后台运行时会自动检查变化。
 
 | 文件 | 用途 |
@@ -86,11 +117,11 @@ python3 rime.py --discover-target --rediscover-target
 | 平台 | 输入习惯与调整位置 |
 | --- | --- |
 | Windows / Linux | `Ctrl+Space` 切换中英文，切换时提交去分隔符拼音（`xi'an hao` → `xianhao`）；Shift 不切换，CapsLock 保留大写功能 |
-| Windows | `-` / `=` 翻页；终端和编辑器初始英文名单、外观见 [`weasel.custom.yaml`](config/weasel.custom.yaml) |
-| Ubuntu Fcitx5 | `Ctrl+Alt+Space` 激活/退出前端；输入偏好见 [`fcitx5/input.json`](config/fcitx5/input.json)，应用名单见 [`fcitx5.custom.yaml`](config/fcitx5.custom.yaml) |
-| macOS | 鼠须管保持中文，`Ctrl+Space` 由系统切换输入源，英文使用系统英文输入源；外观见 [`squirrel.custom.yaml`](config/squirrel.custom.yaml) |
+| Windows | `-` / `=` 翻页；终端和编辑器初始英文名单、外观见 [`weasel.custom.yaml`](config.example/weasel.custom.yaml) |
+| Ubuntu Fcitx5 | `Ctrl+Alt+Space` 激活/退出前端；输入偏好见 [`fcitx5/input.json`](config.example/fcitx5/input.json)，应用名单见 [`fcitx5.custom.yaml`](config.example/fcitx5.custom.yaml) |
+| macOS | 鼠须管保持中文，`Ctrl+Space` 由系统切换输入源，英文使用系统英文输入源；外观见 [`squirrel.custom.yaml`](config.example/squirrel.custom.yaml) |
 
-通用设置见 [`default.custom.yaml`](config/default.custom.yaml)，雾凇选项见 [`rime_ice.custom.yaml`](config/rime_ice.custom.yaml)。中文标点根据候选或最近提交字符判断，粘贴或移动光标后可能回退中文标点。
+通用设置见 [`default.custom.yaml`](config.example/default.custom.yaml)，雾凇选项见 [`rime_ice.custom.yaml`](config.example/rime_ice.custom.yaml)。中文标点根据候选或最近提交字符判断，粘贴或移动光标后可能回退中文标点。
 
 Windows 自定义图标需要本机准备 `icons/chinese.ico` 和 `icons/english.ico`，二进制图标不随个人配置云同步。Linux 主题由 `config/fcitx5/theme.json` 管理，默认自动应用；Classic UI 外观也会影响使用它的其他输入法。手动应用：
 

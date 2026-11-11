@@ -7,10 +7,10 @@ import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from client.platforms.linux.frontend_preferences import desired, apply
 
-@unittest.skipUnless(Path('config/fcitx5/input.json').exists(),'Personal source excluded from server image')
+@unittest.skipUnless(Path('config.example/fcitx5/input.json').exists(),'Personal source excluded from server image')
 class PreferencesTests(unittest.TestCase):
     def test_preserves_other_shortcuts_and_idempotence(self):
-        config=json.loads(Path('config/fcitx5/input.json').read_text())
+        config=json.loads(Path('config.example/fcitx5/input.json').read_text())
         original={'Hotkey':{'TriggerKeys':{'0':'Control+space','1':'Hangul'},'AltTriggerKeys':{'0':'Shift_L'},'Other':'keep'},'Behavior':{'Other':'keep'}}
         g,r=desired(config,original,{'Other':'keep'})
         self.assertEqual(g['Hotkey']['TriggerKeys'],{'0':'Hangul','1':'Control+Alt+space'})
@@ -28,7 +28,7 @@ class PreferencesTests(unittest.TestCase):
                 if self.fail:self.values[uri]['unexpected']='value';self.fail=False
         client=Client()
         with tempfile.TemporaryDirectory() as temp:
-            with self.assertRaises(ValueError):apply('config',temp,client=client)
+            with self.assertRaises(ValueError):apply('config.example',temp,client=client)
         self.assertEqual(client.values,{'fcitx://config/global':{},'fcitx://config/addon/rime':{}})
 
     def test_preview_never_connects_to_desktop_or_writes_state(self):
@@ -36,7 +36,7 @@ class PreferencesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             state=Path(temp)/'state'
             with patch('client.platforms.linux.frontend_preferences.FcitxConfig',side_effect=AssertionError('desktop access')):
-                self.assertEqual(apply('config',state,dry_run=True),'planned')
+                self.assertEqual(apply('config.example',state,dry_run=True),'planned')
             self.assertFalse(state.exists())
 
     def test_managed_workflow_is_linux_only_and_deployment_depends_on_it(self):

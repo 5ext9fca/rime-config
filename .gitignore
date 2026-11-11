@@ -13,3 +13,23 @@ server/.env
 *.local.json
 # Local endpoint settings; copy remote.json.example on first setup.
 /remote.json
+
+# Active personal configuration is managed by the sync service.
+# Keep examples in config.example/; add new manifest paths here as well.
+/config/default.custom.yaml
+/config/weasel.custom.yaml
+/config/squirrel.custom.yaml
+/config/rime_ice.custom.yaml
+/config/custom_phrase.txt
+/config/luna_quanpin.custom.yaml
+/config/lua/hx_preferences.lua
+/config/fcitx5/theme.json
+/config/melt_eng.schema.yaml
+/config/radical_pinyin.schema.yaml
+/config/melt_eng.custom.yaml
+/config/radical_pinyin.custom.yaml
+/config/hx_english_algebra.yaml
+/config/grammar.yaml
+/config/fcitx5/input.json
+/config/fcitx5.yaml
+/config/fcitx5.custom.yaml

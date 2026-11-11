@@ -9,7 +9,7 @@ import unittest
 class PreferenceTests(unittest.TestCase):
     def test_lua_input_behavior(self):
         root = Path(__file__).resolve().parents[1]
-        if not (root / 'config/lua/hx_preferences.lua').exists():
+        if not (root / 'config.example/lua/hx_preferences.lua').exists():
             self.skipTest('Personal assets are excluded from the server image')
         # Weasel's rime.dll exports its bundled Lua API; opt in without assuming
         # an installation path or installing another runtime on Windows.
