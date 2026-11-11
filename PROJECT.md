@@ -4,27 +4,38 @@
 
 ## 当前交付状态
 
-截至 2026-11-10，Windows 原生客户端及真实 VPS 已完成验收。本机当前用户计划任务单实例运行，每 60 秒通过现有 Caddy HTTPS 同步。6 个个人配置文件、2 份词典快照核对通过；后续已按用户要求接入原生 `/sync` 自动合并、导出及回传，模式为 `native-all`。Windows 和 Unix 共用全量词典范围补齐规则；Unix 原生包装器配置及实机验收不在本轮范围。详细证据见 [Windows 验收总结](#windows-验收总结)、[公网部署与同步验收](#公网部署与同步验收) 和 [原生全量同步](#原生全量同步)。
+以下概括仓库截至 2026-11-11 留存的验收记录，不代表当前机器或服务的实时状态。历史记录中的版本号、配置数量、测试数量及“待验收”结论仅对应当时阶段，后续记录可补齐早期结论。本次文档整理未重新执行平台部署或公网联调。
 
-macOS 已完成配置与快照 HTTPS 端到端、内置无人值守原生合并及失败恢复；UI 和登录启动此前已由用户确认。新入口及本轮证据见 [macOS 新入口与内置维护续验](#macos-新入口与内置维护续验2026-11-10)。Ubuntu 已完成真实锁屏触发的内置全量同步、重新部署及 HTTPS 回传，后台为 native-all。当前仅支持 Windows 原生、macOS、原生 Linux，WSL 已移除；不实现异机备份。
+- Windows：已完成当前用户任务、新入口迁移、真实 HTTPS 配置与快照核对、原生 `/sync` 和自动部署完成验证。2026-11-11 的立即部署入口实测通过，PiliPlus 短按/长按切换已由用户确认；新入口重新登录触发和图标视觉结果仍未在该轮单独验收。
+- macOS：已完成配置与快照 HTTPS 同步、内置全量合并、自动部署、失败恢复及新入口迁移；UI 与登录启动由用户确认。
+- Ubuntu Fcitx5：已完成配置应用、内置全量合并、自动部署、HTTPS 回传、systemd 生命周期及真实登录触发；UI 由用户确认。Wayland 事件式空闲检测的具体边界见专项记录。
+- 最新留存的 Windows 自动回归为 175 项（158 通过、17 条件跳过），不代表所有平台都运行了同一组实机验证。
+
+当前支持 Windows 原生、macOS、原生 Linux；不支持 WSL，不实现异机备份、自动设备注册或恢复向导。自定义 Unix 包装器必须单独验收，不能从内置入口的通过结论推导其正确性。
+
+阅读索引：[数据边界](#代码与数据边界)、[配置合并](#合并删除与恢复)、[API](#api)、[原生同步](#原生全量同步)、[计划契约](#跨平台计划与执行)、[开发验证](#开发与验证)、[Windows 后续验收](#windows-新入口续验2026-11-10排除桌面-ui)、[立即部署接口](#单次立即部署测试接口2026-11-11)。
 
 ## 代码与数据边界
 
 | 位置 | 职责 |
 | --- | --- |
-| `rime.py` | 命令入口、周期调度、本地配置应用与备份 |
+| `rime.py`、`client/cli.py` | 入口与参数解析；执行交给 application 层 |
+| `client/application/runtime.py`、`workflow.py` | 初始化、周期循环与工作流编排 |
+| `client/core/configuration.py`、`plans.py` | 配置应用、备份与版本化计划契约 |
 | `client/config/paths.py` | 跨平台目录发现与私有路径记忆 |
 | `client/services/service.py` | 跨平台服务入口，systemd / launchd 用户服务管理 |
-| `client/platforms/windows/windows_service.py`、`client/windows_service.ps1` | Windows 当前用户计划任务的注册、查询、卸载与恢复 |
+| `client/platforms/windows/windows_service.py`、`client/platforms/windows/windows_service.ps1` | Windows 当前用户计划任务的注册、查询、卸载与恢复 |
 | `client/platforms/windows/windows_runner.py` | pythonw 后台入口与 UTF-8 日志 |
 | `client/storage/file_lock.py`、`client/platforms/windows/windows_security.py` | 跨进程文件锁及 Windows 私有文件 ACL |
 | `client/config/identity.py` | 安装 ID 与设备令牌初始化 |
 | `client/core/scope.py` | 个人配置及词典范围校验 |
-| `client/remote.py` | HTTPS 同步、三方比较、版本提交与恢复 |
+| `client/application/cloud_sync.py` | 云同步事务、版本提交、响应丢失恢复与冲突留存 |
+| `client/core/merge.py`、`client/transport/` | 纯三方比较、HTTPS 传输和协议编解码 |
 | `client/application/dictionaries.py` | 原生个人词典快照交换与应用钩子 |
 | `client/maintenance/native_sync.py`、`client/platforms/windows/weasel_sync.py` | 跨平台全量范围补齐、完成凭据、Windows 原生 /sync 与恢复检查 |
 | `client/providers/third_party.py` | 第三方词典下载、校验与刷新 |
-| `server/app.py` | WSGI 接口、设备鉴权与 SQLite 持久化 |
+| `server/app.py`、`credentials.py`、`database.py`、`scopes.py` | WSGI 接口、设备鉴权、SQLite 持久化与授权范围 |
+| `server/backups.py`、`backup_worker.py` | 完整备份套件、保留策略及独立调度 |
 | `tests/` | 临时目录、模拟上游及客户端/服务端集成测试 |
 
 配置流向为：服务端与 `config/` 合并 → 更新 `config/` → 按清单应用到实际目录。实际目录不是配置编辑源。自动学习数据则从 Rime 原生快照采集，经服务端或共享目录交换，再交由 Rime 合并。第三方词典从上游直接更新实际目录，不进入个人数据服务端。
@@ -297,7 +308,7 @@ python3 rime.py --watch --interval 10 \
 
 词典快照在覆盖前备份至状态目录下 `dictionaries/backups/`，写入采用原子替换。交换不作整批回滚，失败可重试，已完成文件保持有效；不会删除快照或清空词条。服务锁仅协调本程序，不能锁住 Rime 或云盘；应等待原生同步完成后交换。修改中的快照会报错，请重试。所有快照和备份均含个人数据，使用私有存储。
 
-按 [用户指南](README.md#后台运行) 执行 `--service install` 时传入同样的原生参数，即可启用后台合并与交换。Windows 已分别完成隔离原生合并及生产 `/sync` 验收；其他平台原生命令需另行配置并实机验收。
+按 [用户指南](README.md#5-后台运行) 执行 `--service install` 时传入同样的原生参数，即可启用后台合并与交换。Windows 已分别完成隔离原生合并及生产 `/sync` 验收；其他平台原生命令需另行配置并实机验收。
 
 
 ## 原生全量同步
@@ -854,3 +865,31 @@ Lua 原实现每次 Control+space 按下都翻转状态，且所有 release 均�
 部署策略在内存副本中启用，未改写 automation.json；个人配置 enabled/files 仍是应用授权边界。记录 `deployment-test-result.json`，不覆盖完整工作流结果；不进入 cloud_sync、dictionary exchange、第三方下载或词典限频逻辑。CLI 拒绝持续服务、初始化、发现及同步动作组合，服务持续参数白名单不含此一次性开关。dry-run 不创建状态、路径记忆或平台执行器。
 
 新增五项测试覆盖只读预览、真实临时配置备份、重复强制执行、失败重试、CLI 隔离及手动空闲许可作用域。最终回归 175 项（158 通过、17 条件跳过）。Windows 实机执行 `python rime.py --deploy-now` 返回 0，完成凭据 success，执行前后 native-all/schedule.json SHA-256 不变；清除临时诊断后的 Weasel DLL 引擎复验通过。私有证据为 `private/flutter-shortpress/deploy-now-result.json`、`tests-final.log`、`engine-final.log`。
+
+
+## 开发补充：从用户指南归并的约定
+
+### 部署包装器接口
+
+自定义 `automation.json` 的 `deployment.commands` 按平台配置绝对路径参数数组，优先于内置适配器。包装器读取 `RIME_USER_DIR` 和 `RIME_DEPLOY_IDLE_SECONDS`，调用前端真实部署入口并等待完成，在 `RIME_DEPLOY_RECEIPT` 写入 `{"status":"success"}`；未开始可写入 `{"status":"deferred"}`。240 秒超时或缺少凭据视为失败，异步通知返回 0 不代表成功。`--deploy-now` 传入零空闲阈值，仍要求完成凭据；deferred 返回非零。远端主题不能携带本机部署命令。
+
+### Linux 主题资源开发
+
+`config/fcitx5/theme.json` 为个人同步中的文本资源包；其他平台仅保存，Linux 应用到 Fcitx5，不复制到 Rime 目录。修改开发用主题源后运行 `python3 client/platforms/linux/generate_fcitx5_theme.py` 重建资源包，开发环境需要 Pillow；常规使用仓库自带 PNG 不需要 Pillow。应用程序合并 Classic UI 受管理项，保留无关设置，备份及回滚清单位于 `private/fcitx5-theme/`。
+
+### 计划与状态检查
+
+`--plan-json` 是只读观察，不联网、不调用平台入口、不写状态或扩充清单；包含文件指纹与阶段决策，不包含令牌或词典正文，不能作为输入重放。实际执行重新观察远端合并结果与空闲条件。私有状态目录保存 `workflow-plan.json`、`workflow-result.json`，原生维护保存 `native-all/plan.json`。前端偏好加入后的工作流版本为 4；历史记录中的 version=3 属于较早阶段。
+
+### 文档维护与验证入口
+
+README 只保留安装、配置、日常操作、用户可见限制和故障处理；服务端部署维护放在 `server/README.md`；架构、协议、包装器、开发依赖和验收证据集中于本文。不得将某台机器的私有连接文件、服务状态或历史测试计数写成所有安装的默认状态。
+
+从项目根目录运行 `python3 -m unittest discover -s tests -v`（Windows 使用 `python`）；容器验证可执行：
+
+```bash
+docker build -f server/Dockerfile --target test -t rime-config-test:local .
+docker run --rm --network none --read-only --tmpfs /tmp rime-config-test:local
+```
+
+普通自动测试、隔离真实引擎、活动前端原生维护、真实 HTTPS 和桌面 UI 验收分别报告。平台或权限导致的跳过不得算作通过；测试使用临时目录和测试词典，不覆盖活动数据库。详细历史证据及各次未完成事项保留在上述专项记录中。

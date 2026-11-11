@@ -62,7 +62,7 @@ handle /rime/* {
 
 ## 客户端连接
 
-部署后，在每台客户端将 `remote.json.example` 复制为 Git 忽略的 `remote.json`（保留已有本机文件），配置后执行 `python3 rime.py --init`，输入对应设备令牌。安装 ID 必须与服务端设备条目一致。具体步骤见 [启用多设备云同步](../README.md#启用多设备云同步)，冲突处理见 [用户指南](../README.md#遇到配置冲突)。
+部署后，在每台客户端将 `remote.json.example` 复制为 Git 忽略的 `remote.json`（保留已有本机文件），配置后执行 `python3 rime.py --init`，输入对应设备令牌。安装 ID 必须与服务端设备条目一致。具体步骤见 [启用多设备云同步](../README.md#3-启用多设备云同步)，冲突处理见 [用户指南](../README.md#处理配置冲突)。
 
 ## 维护与备份
 
