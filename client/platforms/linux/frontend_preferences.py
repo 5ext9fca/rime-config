@@ -38,7 +38,7 @@ class FcitxConfig:
     def __init__(self):
         from gi.repository import Gio,GLib
         self.GLib=GLib
-        self.proxy=Gio.DBusProxy.new_for_bus_sync(Gio.BusType.SESSION,Gio.DBusProxyFlags.NONE,None,
+        self.proxy=Gio.DBusProxy.new_for_bus_sync(Gio.BusType.SESSION,Gio.DBusProxyFlags.DO_NOT_AUTO_START,None,
             'org.fcitx.Fcitx5','/controller','org.fcitx.Fcitx.Controller1',None)
     def get(self,uri):
         return self.proxy.call_sync('GetConfig',self.GLib.Variant('(s)',(uri,)),0,10000,None).unpack()[0]

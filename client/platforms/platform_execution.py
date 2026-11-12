@@ -42,9 +42,8 @@ class UnixExecutor:
 
     def reload_theme(self):
         if self.platform!='linux':raise ValueError('Fcitx5 theme applies only to native Linux')
-        subprocess.run(['gdbus','call','--session','--dest','org.fcitx.Fcitx5','--object-path','/controller',
-                        '--method','org.fcitx.Fcitx.Controller1.ReloadAddonConfig','classicui'],
-                       check=True,timeout=30,stdout=subprocess.DEVNULL)
+        from client.platforms.linux.fcitx_maintenance import call
+        call('ReloadAddonConfig','classicui')
 
     def deploy(self, target, policy, session, immediate=False):
         from client.maintenance.deployment import execute_platform

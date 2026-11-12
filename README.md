@@ -299,3 +299,5 @@ tail -f ~/Library/Logs/rime-config/stdout.log ~/Library/Logs/rime-config/stderr.
 | 想停用 Windows 后台任务 | 执行 `--service uninstall` 或禁用任务；仅结束进程会被恢复触发器重新启动 |
 
 查看全部选项：`python3 rime.py --help`。只读查看结构化计划：`python3 rime.py --plan-json`；它不会联网或执行维护，不保证远端合并后的最终结果。平台验收范围、开发测试和实现限制统一见 [PROJECT.md](PROJECT.md)。
+
+Linux 桌面登录期间，后台同步只连接已经运行的 Fcitx5，不负责启动输入法。KDE Wayland 请在系统设置的虚拟键盘中选择 Fcitx5，由 KDE 启动；前端尚未就绪时相关步骤失败后按既有周期重试，不能将后台服务 active 视为输入法可用。

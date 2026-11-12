@@ -12,7 +12,14 @@ from client.storage.config_paths import safe_path
 from client.storage.file_lock import lock_exclusive
 
 def call(method,*args):
-    return subprocess.run(['gdbus','call','--session','--dest','org.fcitx.Fcitx5','--object-path','/controller',
+    # Resolve without activation; a unique destination cannot start a replacement
+    # if the desktop-owned frontend exits between lookup and the actual call.
+    output=subprocess.run(['gdbus','call','--session','--dest','org.freedesktop.DBus',
+        '--object-path','/org/freedesktop/DBus','--method','org.freedesktop.DBus.GetNameOwner',
+        'org.fcitx.Fcitx5'],check=True,capture_output=True,text=True,timeout=10).stdout
+    match=re.fullmatch(r"\('(:[0-9]+\.[0-9]+)',\)\s*",output)
+    if not match:raise ValueError('Fcitx5 owner unavailable')
+    return subprocess.run(['gdbus','call','--session','--dest',match[1],'--object-path','/controller',
                            '--method','org.fcitx.Fcitx.Controller1.'+method,*args],
                           check=True,capture_output=True,text=True,timeout=15).stdout
 
