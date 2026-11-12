@@ -1,10 +1,10 @@
 # Rime 配置与同步用户指南
 
-管理 Windows 原生、macOS 和 Ubuntu 上的 Rime 个人配置、自定义短语及自动学习词典，支持自建 HTTPS 云同步和独立刷新雾凇拼音词典。
+管理 Windows 原生、macOS 和原生 Linux 上的 Rime 个人配置、自定义短语及自动学习词典，支持自建 HTTPS 云同步和独立刷新雾凇拼音词典。
 
 **日常修改请编辑 `config/`。** 云同步先合并到该目录，再应用到输入法实际目录。直接修改实际目录中的受管理配置会被下次应用覆盖。
 
-开发架构、协议与验收记录见 [PROJECT.md](PROJECT.md)；VPS 安装、备份与恢复见 [服务端部署指南](server/README.md)。
+开发架构、协议、实现约束与验证要求见 [PROJECT.md](PROJECT.md)；VPS 安装、备份与恢复见 [服务端部署指南](server/README.md)。
 
 ## 1. 安装与首次运行
 
@@ -18,6 +18,8 @@
 | macOS | 鼠须管，在已登录的图形会话中运行 | `~/Library/Rime` |
 | Ubuntu | Rime 前端；Fcitx5 前端偏好应用需要 `python3-gi`，内置首次词典导入需要 `rime_dict_manager` | `~/.config/ibus/rime`、`~/.config/fcitx5/rime`、`~/.config/fcitx/rime`、`~/.local/share/fcitx5/rime` |
 
+Fedora KDE 也可使用 Linux Fcitx5 客户端。安装依赖：`sudo dnf install fcitx5 fcitx5-rime fcitx5-configtool librime-tools librime-lua librime-octagram python3-gobject`。KDE Wayland 在系统设置的“虚拟键盘”中选择 Fcitx 5，由 KWin 启动；完整雾凇方案与万象模型仍需单独准备。Fedora 的验证覆盖与剩余边界见 [PROJECT.md](PROJECT.md#能力与验证边界)。
+
 Linux 支持 `XDG_CONFIG_HOME` 和 `XDG_DATA_HOME`。不支持 WSL，请使用 Windows 原生客户端。
 
 Windows PowerShell：
@@ -30,7 +32,7 @@ python rime.py --dry-run
 python rime.py
 ```
 
-macOS / Ubuntu：
+macOS / Linux：
 
 ```bash
 test -e remote.json || cp remote.json.example remote.json
@@ -62,7 +64,7 @@ Get-ChildItem -LiteralPath $exampleRoot -File -Recurse | ForEach-Object {
 }
 ```
 
-macOS / Ubuntu（保留已有文件）：
+macOS / Linux（保留已有文件）：
 
 ```bash
 mkdir -p config
@@ -71,7 +73,7 @@ cp -Rn config.example/. config/
 
 示例不是运行时配置源，修改示例不会自动应用；日常仍编辑 `config/`。示例中的输入偏好、主题和短语按个人需要调整。`fcitx5.yaml` 是清单中保留的历史删除项，示例不重建它。
 
-**已有设备升级此变更前，先停止后台服务，并将 `config/` 备份到仓库之外。** Git 更新会移除原来受跟踪的文件；更新后从备份恢复这些个人文件到 `config/`，再恢复服务，不要用示例覆盖自己的配置或删除同步基线。本次本机取消跟踪操作保留了实际文件。Git 历史中的旧配置未被清除。
+**从仍跟踪个人配置的旧版本升级时，先停止后台服务，并将 `config/` 备份到仓库之外。** Git 更新会移除原来受跟踪的文件；更新后从备份恢复这些个人文件到 `config/`，再恢复服务，不要用示例覆盖自己的配置或删除同步基线。Git 历史中的旧配置未被清除。
 
 ### 选择或迁移输入法目录
 
@@ -296,8 +298,7 @@ tail -f ~/Library/Logs/rime-config/stdout.log ~/Library/Logs/rime-config/stderr.
 | 云同步返回 401 / 403 | 检查设备令牌、服务端设备配置及两端范围授权 |
 | 第三方下载失败或网络中断 | 保留现有数据，恢复网络后重试；持续模式会按配置周期重试 |
 | 服务端恢复后报告版本回退 | 停止并按人工恢复流程核对数据与基线，不删除状态目录强行继续 |
+| KDE 登录后输入法不可用 | 在系统设置的虚拟键盘中选择 Fcitx5，由 KDE 启动；后台同步不会代为启动前端，服务 active 不代表输入法可用 |
 | 想停用 Windows 后台任务 | 执行 `--service uninstall` 或禁用任务；仅结束进程会被恢复触发器重新启动 |
 
 查看全部选项：`python3 rime.py --help`。只读查看结构化计划：`python3 rime.py --plan-json`；它不会联网或执行维护，不保证远端合并后的最终结果。平台验收范围、开发测试和实现限制统一见 [PROJECT.md](PROJECT.md)。
-
-Linux 桌面登录期间，后台同步只连接已经运行的 Fcitx5，不负责启动输入法。KDE Wayland 请在系统设置的虚拟键盘中选择 Fcitx5，由 KDE 启动；前端尚未就绪时相关步骤失败后按既有周期重试，不能将后台服务 active 视为输入法可用。
